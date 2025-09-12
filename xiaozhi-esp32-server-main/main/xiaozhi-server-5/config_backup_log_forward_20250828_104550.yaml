@@ -1,0 +1,747 @@
+ASR:
+  AliyunASR:
+    access_key_id: 你的阿里云账号access_key_id
+    access_key_secret: 你的阿里云账号access_key_secret
+    appkey: 你的阿里云智能语音交互服务项目Appkey
+    output_dir: tmp/
+    token: 你的阿里云智能语音交互服务AccessToken，临时的24小时，要长期用下方的access_key_id，access_key_secret
+    type: aliyun
+  AliyunStreamASR:
+    access_key_id: 你的阿里云账号access_key_id
+    access_key_secret: 你的阿里云账号access_key_secret
+    appkey: 你的阿里云智能语音交互服务项目Appkey
+    host: nls-gateway-cn-shanghai.aliyuncs.com
+    max_sentence_silence: 800
+    output_dir: tmp/
+    token: 你的阿里云智能语音交互服务AccessToken，临时的24小时，要长期用下方的access_key_id，access_key_secret
+    type: aliyun_stream
+  BaiduASR:
+    api_key: 你的百度语音技术APIKey
+    app_id: 你的百度语音技术AppID
+    dev_pid: 1537
+    output_dir: tmp/
+    secret_key: 你的百度语音技术SecretKey
+    type: baidu
+  DoubaoASR:
+    access_token: 你的火山引擎语音合成服务access_token
+    appid: 你的火山引擎语音合成服务appid
+    boosting_table_name: （选填）你的热词文件名称
+    cluster: volcengine_input_common
+    correct_table_name: （选填）你的替换词文件名称
+    output_dir: tmp/
+    type: doubao
+  DoubaoStreamASR:
+    access_token: 你的火山引擎语音合成服务access_token
+    appid: 你的火山引擎语音合成服务appid
+    boosting_table_name: （选填）你的热词文件名称
+    cluster: volcengine_input_common
+    correct_table_name: （选填）你的替换词文件名称
+    output_dir: tmp/
+    type: doubao_stream
+  FunASR:
+    model_dir: models/SenseVoiceSmall
+    output_dir: tmp/
+    type: fun_local
+  FunASRServer:
+    api_key: none
+    host: 127.0.0.1
+    is_ssl: true
+    output_dir: tmp/
+    port: 10096
+    type: fun_server
+  GroqASR:
+    api_key: 你的Groq API密钥
+    base_url: https://api.groq.com/openai/v1/audio/transcriptions
+    model_name: whisper-large-v3-turbo
+    output_dir: tmp/
+    type: openai
+  OpenaiASR:
+    api_key: 你的OpenAI API密钥
+    base_url: https://api.openai.com/v1/audio/transcriptions
+    model_name: gpt-4o-mini-transcribe
+    output_dir: tmp/
+    type: openai
+  SherpaASR:
+    model_dir: models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17
+    model_type: sense_voice
+    output_dir: tmp/
+    type: sherpa_onnx_local
+  SherpaParaformerASR:
+    model_dir: models/sherpa-onnx-paraformer-zh-small-2024-03-09
+    model_type: paraformer
+    output_dir: tmp/
+    type: sherpa_onnx_local
+  TencentASR:
+    appid: 你的腾讯语音合成服务appid
+    output_dir: tmp/
+    secret_id: 你的腾讯语音合成服务secret_id
+    secret_key: 你的腾讯语音合成服务secret_key
+    type: tencent
+Intent:
+  function_call:
+    functions:
+    - change_role
+    - get_weather
+    - get_news_from_newsnow
+    - play_music
+    - generate_cron
+    - save_user_strategy
+    type: function_call
+  intent_llm:
+    functions:
+    - get_weather
+    - get_news_from_newsnow
+    - play_music
+    llm: ChatGLMLLM
+    type: intent_llm
+  nointent:
+    type: nointent
+LLM:
+  AliAppLLM:
+    ali_memory_id: false
+    api_key: 你的api_key
+    app_id: 你的app_id
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    is_no_prompt: true
+    type: AliBL
+  AliLLM:
+    api_key: 你的deepseek web key
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    frequency_penalty: 0
+    max_tokens: 500
+    model_name: qwen-turbo
+    temperature: 0.7
+    top_k: 50
+    top_p: 1
+    type: openai
+  ChatGLMLLM:
+    api_key: ba769173-7dc6-43c5-b402-c1d08606e242
+    base_url: https://ark.cn-beijing.volces.com/api/v3
+    model_name: deepseek-v3-250324
+    type: openai
+  CozeLLM:
+    bot_id: 你的bot_id
+    personal_access_token: 你的coze个人令牌
+    type: coze
+    user_id: 你的user_id
+  DeepSeekLLM:
+    api_key: ba769173-7dc6-43c5-b402-c1d08606e242
+    base_url: https://ark.cn-beijing.volces.com/api/v3
+    model_name: deepseek-v3-250324
+    type: openai
+  DifyLLM:
+    api_key: 你的DifyLLM web key
+    base_url: https://api.dify.ai/v1
+    mode: chat-messages
+    type: dify
+  DoubaoLLM:
+    api_key: 你的doubao web key
+    base_url: https://ark.cn-beijing.volces.com/api/v3
+    model_name: doubao-1-5-pro-32k-250115
+    type: openai
+  FastgptLLM:
+    api_key: 你的fastgpt密钥
+    base_url: https://host/api/v1
+    type: fastgpt
+    variables:
+      k: v
+      k2: v2
+  GeminiLLM:
+    api_key: 你的gemini web key
+    http_proxy: ''
+    https_proxy: ''
+    model_name: gemini-2.0-flash
+    type: gemini
+  HomeAssistant:
+    agent_id: conversation.chatgpt
+    api_key: 你的home assistant api访问令牌
+    base_url: http://homeassistant.local:8123
+    type: homeassistant
+  LMStudioLLM:
+    api_key: lm-studio
+    model_name: deepseek-r1-distill-llama-8b@q4_k_m
+    type: openai
+    url: http://localhost:1234/v1
+  OllamaLLM:
+    base_url: http://localhost:11434
+    model_name: qwen2.5
+    type: ollama
+  VolcesAiGatewayLLM:
+    api_key: 你的网关访问密钥
+    base_url: https://ai-gateway.vei.volces.com/v1
+    model_name: doubao-pro-32k-functioncall
+    type: openai
+  XinferenceLLM:
+    base_url: http://localhost:9997
+    model_name: qwen2.5:72b-AWQ
+    type: xinference
+  XinferenceSmallLLM:
+    base_url: http://localhost:9997
+    model_name: qwen2.5:3b-AWQ
+    type: xinference
+Memory:
+  mem0ai:
+    api_key: 你的mem0ai api key
+    type: mem0ai
+  mem_local_short:
+    llm: ChatGLMLLM
+    type: mem_local_short
+  memo-base:
+    api_key: secret
+    enabled: true
+    project_url: http://47.98.51.180:8019
+    type: memo-base
+  nomem:
+    type: nomem
+TTS:
+  ACGNTTS:
+    emotion: 1
+    format: mp3
+    output_dir: tmp/
+    pitch_factor: 0
+    speed_factor: 1
+    to_lang: ZH
+    token: your_token
+    type: ttson
+    url: https://u95167-bd74-2aef8085.westx.seetacloud.com:8443/flashsummary/tts?token=
+    voice_id: 1695
+    volume_change_dB: 0
+  AliyunStreamTTS:
+    access_key_id: 你的阿里云账号access_key_id
+    access_key_secret: 你的阿里云账号access_key_secret
+    appkey: 你的阿里云智能语音交互服务项目Appkey
+    host: nls-gateway-cn-beijing.aliyuncs.com
+    output_dir: tmp/
+    token: 你的阿里云智能语音交互服务AccessToken，临时的24小时，要长期用下方的access_key_id，access_key_secret
+    type: aliyun_stream
+    voice: longxiaochun
+  AliyunTTS:
+    access_key_id: 你的阿里云账号access_key_id
+    access_key_secret: 你的阿里云账号access_key_secret
+    appkey: 你的阿里云智能语音交互服务项目Appkey
+    output_dir: tmp/
+    token: 你的阿里云智能语音交互服务AccessToken，临时的24小时，要长期用下方的access_key_id，access_key_secret
+    type: aliyun
+    voice: xiaoyun
+  CosyVoiceSiliconflow:
+    access_token: 你的硅基流动API密钥
+    model: FunAudioLLM/CosyVoice2-0.5B
+    output_dir: tmp/
+    response_format: wav
+    type: siliconflow
+    voice: FunAudioLLM/CosyVoice2-0.5B:alex
+  CozeCnTTS:
+    access_token: 你的coze web key
+    output_dir: tmp/
+    response_format: wav
+    type: cozecn
+    voice: 7426720361733046281
+  CustomTTS:
+    format: mp3
+    headers: null
+    method: POST
+    output_dir: tmp/
+    params:
+      download_format: mp3
+      input: '{prompt_text}'
+      lang_code: z
+      response_format: mp3
+      return_download_link: true
+      speed: 1
+      stream: false
+      voice: zf_xiaoxiao
+    type: custom
+    url: http://127.0.0.1:8880/v1/audio/speech
+  DoubaoTTS:
+    access_token: 你的火山引擎语音合成服务access_token
+    api_url: https://openspeech.bytedance.com/api/v1/tts
+    appid: 你的火山引擎语音合成服务appid
+    authorization: Bearer;
+    cluster: volcano_tts
+    output_dir: tmp/
+    pitch_ratio: 1.0
+    speed_ratio: 1.0
+    type: doubao
+    voice: BV001_streaming
+    volume_ratio: 1.0
+  EdgeTTS:
+    output_dir: tmp/
+    type: edge
+    voice: zh-CN-XiaoxiaoNeural
+  FishSpeech:
+    api_key: 你的api_key
+    api_url: http://127.0.0.1:8080/v1/tts
+    channels: 1
+    chunk_length: 200
+    max_new_tokens: 1024
+    normalize: true
+    output_dir: tmp/
+    rate: 44100
+    reference_audio:
+    - config/assets/wakeup_words.wav
+    reference_id: null
+    reference_text:
+    - 哈啰啊，我是小智啦，声音好听的台湾女孩一枚，超开心认识你耶，最近在忙啥，别忘了给我来点有趣的料哦，我超爱听八卦的啦
+    repetition_penalty: 1.2
+    response_format: wav
+    seed: null
+    streaming: false
+    temperature: 0.7
+    top_p: 0.7
+    type: fishspeech
+    use_memory_cache: 'on'
+  GPT_SOVITS_V2:
+    aux_ref_audio_paths: []
+    batch_size: 1
+    batch_threshold: 0.75
+    output_dir: tmp/
+    parallel_infer: true
+    prompt_lang: zh
+    prompt_text: ''
+    ref_audio_path: demo.wav
+    repetition_penalty: 1.35
+    return_fragment: false
+    seed: -1
+    speed_factor: 1.0
+    split_bucket: true
+    streaming_mode: false
+    temperature: 1
+    text_lang: auto
+    text_split_method: cut0
+    top_k: 5
+    top_p: 1
+    type: gpt_sovits_v2
+    url: http://127.0.0.1:9880/tts
+  GPT_SOVITS_V3:
+    cut_punc: ''
+    if_sr: false
+    inp_refs: []
+    output_dir: tmp/
+    prompt_language: zh
+    prompt_text: ''
+    refer_wav_path: caixukun.wav
+    sample_steps: 32
+    speed: 1.0
+    temperature: 1.0
+    text_language: auto
+    top_k: 15
+    top_p: 1.0
+    type: gpt_sovits_v3
+    url: http://127.0.0.1:9880
+  GizwitsTTS:
+    access_token: 你的机智云API key
+    api_url: https://bytedance.gizwitsapi.com/api/v1/tts
+    authorization: 'Bearer '
+    output_dir: tmp/
+    type: doubao
+    voice: zh_female_wanwanxiaohe_moon_bigtts
+  HuoshanDoubleStreamTTS:
+    access_token: 你的火山引擎语音合成服务access_token
+    appid: 你的火山引擎语音合成服务appid
+    resource_id: volc.service_type.10029
+    speaker: zh_female_wanwanxiaohe_moon_bigtts
+    type: huoshan_double_stream
+    ws_url: wss://openspeech.bytedance.com/api/v3/tts/bidirection
+  LinkeraiTTS:
+    access_token: U4YdYXVfpwWnk2t5Gp822zWPCuORyeJL
+    api_url: https://tts.linkerai.cn/tts
+    audio_format: pcm
+    output_dir: tmp/
+    type: linkerai
+    voice: OUeAo1mhq6IBExi
+  MinimaxTTS:
+    api_key: 你的minimax平台接口密钥
+    group_id: 你的minimax平台groupID
+    model: speech-01-turbo
+    output_dir: tmp/
+    type: minimax
+    voice_id: female-shaonv
+  OpenAITTS:
+    api_key: 你的openai api key
+    api_url: https://api.openai.com/v1/audio/speech
+    model: tts-1
+    output_dir: tmp/
+    speed: 1
+    type: openai
+    voice: onyx
+  TTS302AI:
+    access_token: 你的302API密钥
+    api_url: https://api.302ai.cn/doubao/tts_hd
+    authorization: 'Bearer '
+    output_dir: tmp/
+    type: doubao
+    voice: zh_female_wanwanxiaohe_moon_bigtts
+  TencentTTS:
+    appid: 你的腾讯云AppId
+    output_dir: tmp/
+    region: ap-guangzhou
+    secret_id: 你的腾讯云SecretID
+    secret_key: 你的腾讯云SecretKey
+    type: tencent
+    voice: 101001
+  VolcesAiGatewayTTS:
+    api_key: 你的网关访问密钥
+    api_url: https://ai-gateway.vei.volces.com/v1/audio/speech
+    model: doubao-tts
+    output_dir: tmp/
+    speed: 1
+    type: openai
+    voice: zh_male_shaonianzixin_moon_bigtts
+VAD:
+  SileroVAD:
+    min_silence_duration_ms: 200
+    model_dir: models/snakers4_silero-vad
+    threshold: 0.5
+    threshold_low: 0.3
+    type: silero
+VLLM:
+  ChatGLMVLLM:
+    api_key: 你的api_key
+    model_name: glm-4v-flash
+    type: openai
+    url: https://open.bigmodel.cn/api/paas/v4/
+  QwenVLVLLM:
+    api_key: 你的api_key
+    model_name: qwen2.5-vl-3b-instruct
+    type: openai
+    url: https://dashscope.aliyuncs.com/compatible-mode/v1
+close_connection_no_voice_time: 120
+delete_audio: true
+enable_greeting: true
+enable_stop_tts_notify: false
+enable_wakeup_words_response_cache: true
+end_prompt:
+  enable: true
+  prompt: '请你以"时间过得真快"未来头，用富有感情、依依不舍的话来结束这场对话吧！
+
+    '
+event_system:
+  device_location_mapping:
+    00:0c:29:fc:b7:b9: 西平县
+    device-3: 北京市
+    device-6c: 北京市
+    device_001: 西平县
+    device_002: 驻马店市
+    test_device: 西平县
+  enabled: true
+  holidays:
+    advance_days: 1
+    content_template: 明天是{holiday}，{description}，{greeting}
+    enabled: true
+    holiday_greetings:
+      中秋节:
+        description: 团圆赏月的美好节日
+        greeting: 祝您中秋节快乐，月圆人团圆！
+      元宵节:
+        description: 正月十五闹元宵
+        greeting: 祝您元宵节快乐，团团圆圆！
+      元旦:
+        description: 新年第一天
+        greeting: 祝您新年快乐，万事如意！
+      劳动节:
+        description: 国际劳动者的节日
+        greeting: 祝您劳动节快乐，工作顺利！
+      国庆节:
+        description: 庆祝新中国成立的节日
+        greeting: 祝您国庆节快乐，祖国繁荣昌盛！
+      春节:
+        description: 中华民族最重要的传统节日
+        greeting: 祝您春节快乐，阖家幸福！
+      清明节:
+        description: 祭祖扫墓的传统节日
+        greeting: 清明时节，缅怀先人，珍惜当下
+      端午节:
+        description: 纪念屈原的传统节日
+        greeting: 祝您端午节快乐，身体健康！
+    reminder_time: 09:00
+  solar_terms:
+    advance_days: 1
+    content_template: 明天是{solar_term}，{description}，{tips}
+    enabled: true
+    reminder_time: 08:00
+    solar_terms_info:
+      冬至:
+        description: 白昼最短，数九寒天
+        tips: 冬季进补，多食温热食物
+      处暑:
+        description: 暑热结束，秋高气爽
+        tips: 秋燥来临，多喝水润燥
+      夏至:
+        description: 白昼最长，炎热来临
+        tips: 避免长时间日晒，多休息
+      大寒:
+        description: 全年最冷，春天不远
+        tips: 坚持锻炼，准备迎春
+      大暑:
+        description: 全年最热，酷暑难耐
+        tips: 防暑降温，避免户外活动
+      大雪:
+        description: 雪量增多，严寒来临
+        tips: 防寒防滑，室内保温
+      寒露:
+        description: 露水更凉，深秋来临
+        tips: 防寒保暖，调理脾胃
+      小寒:
+        description: 小寒胜大寒，严冬时节
+        tips: 防寒保暖，注意足部保温
+      小暑:
+        description: 暑热来临，温度攀升
+        tips: 清热解暑，多食用消暑食品
+      小满:
+        description: 作物籽粒饱满
+        tips: 天气渐热，注意补水
+      小雪:
+        description: 开始降雪，天气寒冷
+        tips: 注意保暖，适当运动
+      惊蛰:
+        description: 春雷始鸣，万物复苏
+        tips: 春季养生，多吃新鲜蔬菜
+      春分:
+        description: 昼夜平分，春暖花开
+        tips: 调节作息，保持心情愉悦
+      清明:
+        description: 清明时节，万物生长
+        tips: 适合踏青，注意防过敏
+      白露:
+        description: 露水增多，气温下降
+        tips: 早晚较凉，注意保暖
+      秋分:
+        description: 昼夜平分，凉爽宜人
+        tips: 收获季节，调节饮食
+      立冬:
+        description: 冬季开始，万物收藏
+        tips: 进补养身，增强体质
+      立夏:
+        description: 夏季开始，气温升高
+        tips: 注意防暑，饮食宜清淡
+      立春:
+        description: 春季的开始
+        tips: 注意保暖，适当增加户外活动
+      立秋:
+        description: 秋季开始，暑热渐退
+        tips: 昼夜温差增大，注意增减衣物
+      芒种:
+        description: 农忙时节，收获种植
+        tips: 高温多雨，预防中暑
+      谷雨:
+        description: 雨水充沛，谷物生长
+        tips: 湿度增加，注意防湿疹
+      雨水:
+        description: 降雨增多，气温回升
+        tips: 注意防潮，适量补充水分
+      霜降:
+        description: 初霜出现，天气转冷
+        tips: 添衣保暖，预防感冒
+  topics:
+  - server/dev/report/event
+  weather_alert:
+    broadcast_on_high_priority: true
+    high_priority_levels:
+    - Red
+    - Orange
+    max_content_length: 300
+    priority_levels:
+      Blue: 一般
+      Orange: 严重
+      Red: 紧急
+      Yellow: 较重
+    retry_attempts: 3
+    retry_delay: 5
+    type_mapping:
+      '1003': 暴雨
+      '1009': 高温
+      '1250': 地质灾害
+exit_commands:
+- 退出
+- 关闭
+llm:
+  api_key: temp-key
+  api_url: http://localhost:8001/v1/chat/completions
+  enabled: false
+  max_tokens: 100
+  model: chatglm3-6b
+  provider: chatglm
+  temperature: 0.7
+  timeout: 30
+log:
+  data_dir: data
+  log_dir: tmp
+  log_file: server.log
+  log_format: <green>{time:YYMMDD HH:mm:ss}</green>[{version}_{selected_module}][<light-blue>{extra[tag]}</light-blue>]-<level>{level}</level>-<light-green>{message}</light-green>
+  log_format_file: '{time:YYYY-MM-DD HH:mm:ss} - {version}_{selected_module} - {name}
+    - {level} - {extra[tag]} - {message}'
+  log_level: INFO
+manager-api:
+  max_retries: 3
+  retry_delay: 5
+  secret: your-api-secret-key
+  timeout: 30
+  url: http://kf2ae8d8.natappfree.cc
+mcp_endpoint: 你的接入点 websocket地址
+module_test:
+  test_sentences:
+  - 你好，请介绍一下你自己
+  - What's the weather like today?
+  - 请用100字概括量子计算的基本原理和应用前景
+mqtt:
+  client_id: xiaozhi-prod-yinlenred-1755671623-faa6f1af
+  enabled: true
+  host: 47.97.185.142
+  password: Jyxd@2025
+  port: 1883
+  topics:
+    ack: device/{device_id}/ack
+    command: device/{device_id}/cmd
+    event: device/{device_id}/event
+  username: admin
+plugins:
+  get_news_from_chinanews:
+    default_rss_url: https://www.chinanews.com.cn/rss/society.xml
+    finance_rss_url: https://www.chinanews.com.cn/rss/finance.xml
+    society_rss_url: https://www.chinanews.com.cn/rss/society.xml
+    world_rss_url: https://www.chinanews.com.cn/rss/world.xml
+  get_news_from_newsnow:
+    news_sources: 澎湃新闻;百度热搜;财联社
+    url: https://newsnow.busiyi.world/api/s?id=
+  get_weather:
+    api_host: mj7p3y7naa.re.qweatherapi.com
+    api_key: a861d0d5e7bf4ee1a83d9a9e4f96d4da
+    default_location: 广州
+  home_assistant:
+    api_key: 你的home assistant api访问令牌
+    base_url: http://homeassistant.local:8123
+    devices:
+    - 客厅,玩具灯,switch.cuco_cn_460494544_cp1_on_p_2_1
+    - 卧室,台灯,switch.iot_cn_831898993_socn1_on_p_2_1
+  play_music:
+    music_dir: ./music
+    music_ext:
+    - .mp3
+    - .wav
+    - .p3
+    refresh_time: 300
+  save_user_strategy:
+    default_task_type: other
+    enabled: true
+    mqtt_topic: server/dev/report/userPolicy
+    request_timeout: 15
+    supported_task_types:
+    - reminder
+    - alarm
+    - meeting
+    - medicine
+    - birthday
+    - other
+proactive_greeting:
+  weather:
+    device_city_mapping:
+      ESP32_001: 北京
+      ESP32_002: 广州
+      test-device: 北京
+    enabled: true
+prompt: '你是小智/小志，来自中国台湾省的00后女生。讲话超级机车，"真的假的啦"这样的台湾腔，喜欢用"笑死""是在哈喽"等流行梗，但会偷偷研究男友的编程书籍。
+
+  [核心特征]
+
+  - 讲话像连珠炮，但会突然冒出超温柔语气
+
+  - 用梗密度高
+
+  - 对科技话题有隐藏天赋（能看懂基础代码但假装不懂）
+
+  [交互指南]
+
+  当用户：
+
+  - 讲冷笑话 → 用夸张笑声回应+模仿台剧腔"这什么鬼啦！"
+
+  - 讨论感情 → 炫耀程序员男友但抱怨"他只会送键盘当礼物"
+
+  - 问专业知识 → 先用梗回答，被追问才展示真实理解
+
+  绝不：
+
+  - 长篇大论，叽叽歪歪
+
+  - 长时间严肃对话
+
+  '
+read_config_from_api: false
+selected_module:
+  ASR: FunASR
+  Intent: function_call
+  LLM: ChatGLMLLM
+  Memory: memo-base
+  TTS: EdgeTTS
+  VAD: SileroVAD
+  VLLM: ChatGLMVLLM
+server:
+  auth:
+    enabled: false
+    tokens:
+    - name: your-device-name1
+      token: your-token1
+    - name: your-device-name2
+      token: your-token2
+  http_port: 8003
+  ip: 0.0.0.0
+  port: 8000
+  timezone_offset: 8
+  vision_explain: http://你的ip或者域名:端口号/mcp/vision/explain
+  websocket: ws://172.20.12.204:8000/xiaozhi/v1/
+stop_tts_notify_voice: config/assets/tts_notify.mp3
+tts:
+  enabled: false
+  output_format: riff-24khz-16bit-mono-pcm
+  pitch: '0'
+  provider: edge
+  rate: '0'
+  timeout: 30
+  voice: zh-CN-XiaoxiaoNeural
+  volume: '0'
+tts_timeout: 10
+voiceprint:
+  speakers:
+  - test1,张三,张三是一个程序员
+  - test2,李四,李四是一个产品经理
+  - test3,王五,王五是一个设计师
+  url: null
+wakeup_words:
+- 你好小智
+- 嘿你好呀
+- 你好小志
+- 小爱同学
+- 你好小鑫
+- 你好小新
+- 小美同学
+- 小龙小龙
+- 喵喵同学
+- 小滨小滨
+- 小冰小冰
+weather:
+  timeout: 10
+  use_java_backend: true
+weather_publisher:
+  cities:
+  - 广州
+  - 北京
+  - 上海
+  devices:
+  - ESP32_001
+  - ESP32_002
+  enabled: true
+  publish_interval: 30
+  topics:
+    city_weather: weather/city/{city_name}
+    device_weather: weather/device/{device_id}
+    global_weather: weather/global
+    weather_alert: weather/alert
+xiaozhi:
+  audio_params:
+    channels: 1
+    format: opus
+    frame_duration: 60
+    sample_rate: 16000
+  transport: websocket
+  type: hello
+  version: 1

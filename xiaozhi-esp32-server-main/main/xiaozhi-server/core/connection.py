@@ -40,6 +40,10 @@ from config.manage_api_client import DeviceNotFoundException, DeviceBindExceptio
 from core.utils.prompt_manager import PromptManager
 from core.utils.voiceprint_provider import VoiceprintProvider
 from core.utils import textUtils
+from core.utils.resource_manager import get_or_create_resource_manager
+from core.utils.llm_pool import get_llm_pool
+from core.utils.error_handler import get_error_handler, handle_errors, ErrorCategory
+from core.utils.performance_monitor import get_performance_monitor, monitor_performance
 
 TAG = __name__
 
@@ -221,6 +225,8 @@ class ConnectionHandler:
                     await self._route_message(message)
             except websockets.exceptions.ConnectionClosed:
                 self.logger.bind(tag=TAG).info("客户端断开连接")
+                # 🔄 连接断开时重置相关状态
+                self._reset_connection_states()
 
         except AuthenticationError as e:
             self.logger.bind(tag=TAG).error(f"Authentication failed: {str(e)}")
@@ -246,27 +252,13 @@ class ConnectionHandler:
         """保存记忆并关闭连接"""
         try:
             if self.memory:
-                # 使用线程池异步保存记忆
-                def save_memory_task():
-                    try:
-                        # 创建新事件循环（避免与主循环冲突）
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        loop.run_until_complete(
-                            self.memory.save_memory(self.dialogue.dialogue)
-                        )
-                    except Exception as e:
-                        self.logger.bind(tag=TAG).error(f"保存记忆失败: {e}")
-                    finally:
-                        try:
-                            loop.close()
-                        except Exception:
-                            pass
-
-                # 启动线程保存记忆，不等待完成
-                threading.Thread(target=save_memory_task, daemon=True).start()
+                # 🔧 修复：使用纯异步方式，避免线程和事件循环冲突
+                # 创建后台任务保存记忆，不阻塞关闭流程
+                save_task = asyncio.create_task(self._save_memory_background())
+                # 不等待保存完成，立即继续关闭流程
+                self.logger.bind(tag=TAG).info("启动后台记忆保存任务")
         except Exception as e:
-            self.logger.bind(tag=TAG).error(f"保存记忆失败: {e}")
+            self.logger.bind(tag=TAG).error(f"启动记忆保存任务失败: {e}")
         finally:
             # 立即关闭连接，不等待记忆保存完成
             try:
@@ -275,6 +267,15 @@ class ConnectionHandler:
                 self.logger.bind(tag=TAG).error(
                     f"保存记忆后关闭连接失败: {close_error}"
                 )
+
+    async def _save_memory_background(self):
+        """后台保存记忆任务"""
+        try:
+            if self.memory and hasattr(self, 'dialogue') and self.dialogue:
+                await self.memory.save_memory(self.dialogue.dialogue)
+                self.logger.bind(tag=TAG).info("后台记忆保存完成")
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"后台保存记忆失败: {e}")
 
     async def _route_message(self, message):
         """消息路由"""
@@ -366,11 +367,25 @@ class ConnectionHandler:
                 self.asr.open_audio_channels(self), self.loop
             )
             if self.tts is None:
+                self.logger.bind(tag=TAG).info("🔍 TTS为None，开始初始化...")
                 self.tts = self._initialize_tts()
-            # 打开语音合成通道
-            asyncio.run_coroutine_threadsafe(
-                self.tts.open_audio_channels(self), self.loop
-            )
+                
+            self.logger.bind(tag=TAG).info(f"🔍 准备打开TTS音频通道: {type(self.tts).__name__ if self.tts else 'None'}")
+            if self.tts is not None:
+                # 打开语音合成通道
+                try:
+                    self.logger.bind(tag=TAG).info("🔍 调用tts.open_audio_channels...")
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.tts.open_audio_channels(self), self.loop
+                    )
+                    future.result()
+                    self.logger.bind(tag=TAG).info("🔍 TTS音频通道打开成功")
+                except Exception as e:
+                    self.logger.bind(tag=TAG).error(f"🔍 打开TTS音频通道失败: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                self.logger.bind(tag=TAG).error("🔍 TTS仍为None，无法打开音频通道")
 
             """加载记忆"""
             self._initialize_memory()
@@ -409,13 +424,35 @@ class ConnectionHandler:
 
     def _initialize_tts(self):
         """初始化TTS"""
+        self.logger.bind(tag=TAG).info("🔍 开始初始化TTS...")
         tts = None
         if not self.need_bind:
-            tts = initialize_tts(self.config)
+            try:
+                self.logger.bind(tag=TAG).info("🔍 调用initialize_tts...")
+                tts = initialize_tts(self.config)
+                if tts:
+                    self.logger.bind(tag=TAG).info(f"🔍 TTS初始化成功: {type(tts).__name__}")
+                else:
+                    self.logger.bind(tag=TAG).warning("🔍 initialize_tts返回None")
+            except Exception as e:
+                self.logger.bind(tag=TAG).error(f"🔍 initialize_tts异常: {e}")
+                import traceback
+                traceback.print_exc()
 
         if tts is None:
-            tts = DefaultTTS(self.config, delete_audio_file=True)
+            self.logger.bind(tag=TAG).info("🔍 TTS为None，使用DefaultTTS...")
+            try:
+                tts = DefaultTTS(self.config, delete_audio_file=True)
+                if tts:
+                    self.logger.bind(tag=TAG).info(f"🔍 DefaultTTS初始化成功: {type(tts).__name__}")
+                else:
+                    self.logger.bind(tag=TAG).error("🔍 DefaultTTS初始化失败，返回None")
+            except Exception as e:
+                self.logger.bind(tag=TAG).error(f"🔍 DefaultTTS初始化异常: {e}")
+                import traceback
+                traceback.print_exc()
 
+        self.logger.bind(tag=TAG).info(f"🔍 TTS初始化完成: {type(tts).__name__ if tts else 'None'}")
         return tts
 
     def _initialize_asr(self):
@@ -666,22 +703,66 @@ class ConnectionHandler:
         self.dialogue.update_system_message(self.prompt)
 
     def chat(self, query, tool_call=False, depth=0):
-        self.logger.bind(tag=TAG).info(f"大模型收到用户消息: {query}")
-        self.llm_finish_task = False
+        # 🔧 添加性能监控和错误处理（不自动启动避免事件循环冲突）
+        performance_monitor = get_performance_monitor(auto_start=False)
+        
+        with performance_monitor.measure_operation(
+            "chat_processing", 
+            tags={"tool_call": str(tool_call), "depth": str(depth)}
+        ):
+            self.logger.bind(tag=TAG).info(f"大模型收到用户消息: {query}")
+            
+            # 🔒 生成本次对话的唯一ID，防止并发冲突
+            import uuid
+            chat_session_id = str(uuid.uuid4().hex)[:8]  # 短ID方便日志查看
+            self.current_chat_session_id = chat_session_id
+            self.logger.bind(tag=TAG).info(f"🆔 开始处理对话会话: {chat_session_id}")
+            
+            self.llm_finish_task = False
+            
+            try:
+                return self._chat_internal(query, tool_call, depth, chat_session_id)
+            except Exception as e:
+                # 统一错误处理
+                error_handler = get_error_handler()
+                asyncio.create_task(error_handler.handle_error(
+                    e, 
+                    context={
+                        "operation": "chat",
+                        "query": query[:100],  # 限制长度
+                        "tool_call": tool_call,
+                        "depth": depth,
+                        "device_id": getattr(self, 'device_id', 'unknown')
+                    }
+                ))
+                
+                # 记录性能指标
+                performance_monitor.record_metric("chat_errors", 1)
+                raise
+    
+    def _chat_internal(self, query, tool_call=False, depth=0, chat_session_id=None):
 
         if not tool_call:
             self.dialogue.put(Message(role="user", content=query))
+            # 🎭 保存用户查询用于MCP等待提示
+            self.last_user_query = query
 
         # 为最顶层时新建会话ID和发送FIRST请求
         if depth == 0:
             self.sentence_id = str(uuid.uuid4().hex)
-            self.tts.tts_text_queue.put(
-                TTSMessageDTO(
-                    sentence_id=self.sentence_id,
-                    sentence_type=SentenceType.FIRST,
-                    content_type=ContentType.ACTION,
+            # 🔄 新对话开始时重置abort状态
+            if self.client_abort:
+                self.logger.bind(tag=TAG).info("🔄 检测到abort状态，重置后继续LLM处理")
+                self.client_abort = False  # 重置abort状态，允许新对话继续
+            if self.tts is not None:
+                self.logger.bind(tag=TAG).debug("发送FIRST消息到TTS")
+                self.tts.tts_text_queue.put(
+                    TTSMessageDTO(
+                        sentence_id=self.sentence_id,
+                        sentence_type=SentenceType.FIRST,
+                        content_type=ContentType.ACTION,
+                    )
                 )
-            )
 
         # Define intent functions
         functions = None
@@ -698,22 +779,77 @@ class ConnectionHandler:
                 )
                 memory_str = future.result()
 
+            # 🚫 LLM调用前再次检查abort状态和会话ID
+            if self.client_abort:
+                self.logger.bind(tag=TAG).info(f"🚫 LLM调用前检测到abort状态，跳过处理 (会话:{chat_session_id})")
+                return None
+            
+            # 🔒 检查会话ID是否仍然有效（防止旧会话处理）
+            if hasattr(self, 'current_chat_session_id') and self.current_chat_session_id != chat_session_id:
+                self.logger.bind(tag=TAG).info(f"🚫 会话ID不匹配，跳过旧会话处理 (当前:{getattr(self, 'current_chat_session_id', 'None')}, 请求:{chat_session_id})")
+                return None
+                
+            # 🔧 使用LLM连接池（暂时关闭并发限制）
+            llm_pool = get_llm_pool(max_concurrent=999)  # 设置超大值 = 无限制
+            
             if self.intent_type == "function_call" and functions is not None:
                 # 使用支持functions的streaming接口
-                llm_responses = self.llm.response_with_functions(
-                    self.session_id,
-                    self.dialogue.get_llm_dialogue_with_memory(
-                        memory_str, self.config.get("voiceprint", {})
+                future = asyncio.run_coroutine_threadsafe(
+                    llm_pool.call_llm(
+                        self.llm,
+                        "response_with_functions",
+                        self.session_id,
+                        self.dialogue.get_llm_dialogue_with_memory(
+                            memory_str, self.config.get("voiceprint", {})
+                        ),
+                        functions=functions,
                     ),
-                    functions=functions,
+                    self.loop
                 )
+                # 🚫 等待结果前再次检查abort状态和会话ID
+                if self.client_abort:
+                    self.logger.bind(tag=TAG).info(f"🚫 LLM结果等待前检测到abort状态，取消处理 (会话:{chat_session_id})")
+                    try:
+                        future.cancel()  # 尝试取消future
+                    except:
+                        pass
+                    return None
+                if hasattr(self, 'current_chat_session_id') and self.current_chat_session_id != chat_session_id:
+                    self.logger.bind(tag=TAG).info(f"🚫 LLM结果等待前会话ID不匹配，取消处理 (当前:{getattr(self, 'current_chat_session_id', 'None')}, 请求:{chat_session_id})")
+                    try:
+                        future.cancel()  # 尝试取消future
+                    except:
+                        pass
+                    return None
+                llm_responses = future.result()
             else:
-                llm_responses = self.llm.response(
-                    self.session_id,
-                    self.dialogue.get_llm_dialogue_with_memory(
-                        memory_str, self.config.get("voiceprint", {})
+                future = asyncio.run_coroutine_threadsafe(
+                    llm_pool.call_llm(
+                        self.llm,
+                        "response",
+                        self.session_id,
+                        self.dialogue.get_llm_dialogue_with_memory(
+                            memory_str, self.config.get("voiceprint", {})
+                        ),
                     ),
+                    self.loop
                 )
+                # 🚫 等待结果前再次检查abort状态和会话ID
+                if self.client_abort:
+                    self.logger.bind(tag=TAG).info(f"🚫 LLM结果等待前检测到abort状态，取消处理 (会话:{chat_session_id})")
+                    try:
+                        future.cancel()  # 尝试取消future
+                    except:
+                        pass
+                    return None
+                if hasattr(self, 'current_chat_session_id') and self.current_chat_session_id != chat_session_id:
+                    self.logger.bind(tag=TAG).info(f"🚫 LLM结果等待前会话ID不匹配，取消处理 (当前:{getattr(self, 'current_chat_session_id', 'None')}, 请求:{chat_session_id})")
+                    try:
+                        future.cancel()  # 尝试取消future
+                    except:
+                        pass
+                    return None
+                llm_responses = future.result()
         except Exception as e:
             self.logger.bind(tag=TAG).error(f"LLM 处理出错 {query}: {e}")
             return None
@@ -724,10 +860,25 @@ class ConnectionHandler:
         function_id = None
         function_arguments = ""
         content_arguments = ""
-        self.client_abort = False
+        # 🚫 关键修复：不要重置client_abort，保持abort状态
+        # self.client_abort = False  # 注释掉这行，避免重置abort状态
         emotion_flag = True
+        
+        # 开始处理LLM流式响应
+        self.logger.bind(tag=TAG).debug(f"开始处理LLM流式响应，响应类型: {type(llm_responses)}")
+        response_count = 0
+        first_valid_tts_sent = False  # 🛠️ 跟踪是否已发送第一个有效TTS消息
+        
         for response in llm_responses:
+            response_count += 1
+            self.logger.bind(tag=TAG).debug(f"处理响应 #{response_count}: {type(response)}, 内容: {str(response)[:30]} (会话:{chat_session_id})")
+            
+            # 🚫 检查abort状态和会话ID
             if self.client_abort:
+                self.logger.bind(tag=TAG).info(f"🚫 流式响应处理中检测到abort，停止处理 (会话:{chat_session_id})")
+                break
+            if hasattr(self, 'current_chat_session_id') and self.current_chat_session_id != chat_session_id:
+                self.logger.bind(tag=TAG).info(f"🚫 流式响应处理中会话ID不匹配，停止处理 (当前:{getattr(self, 'current_chat_session_id', 'None')}, 请求:{chat_session_id})")
                 break
             if self.intent_type == "function_call" and functions is not None:
                 content, tools_call = response
@@ -763,14 +914,52 @@ class ConnectionHandler:
             if content is not None and len(content) > 0:
                 if not tool_call_flag:
                     response_message.append(content)
-                    self.tts.tts_text_queue.put(
-                        TTSMessageDTO(
-                            sentence_id=self.sentence_id,
-                            sentence_type=SentenceType.MIDDLE,
-                            content_type=ContentType.TEXT,
-                            content_detail=content,
+                    self.logger.bind(tag=TAG).debug(f"收集响应文本: '{content}', 长度: {len(response_message)}")
+                    if self.tts is not None:
+                        # 🚫 关键修复：在发送TTS前再次检查abort状态
+                        if self.client_abort:
+                            self.logger.bind(tag=TAG).info(f"🚫 TTS发送前检测到abort，停止流式TTS处理 (会话:{chat_session_id})")
+                            break
+                        if hasattr(self, 'current_chat_session_id') and self.current_chat_session_id != chat_session_id:
+                            self.logger.bind(tag=TAG).info(f"🚫 TTS发送前会话ID不匹配，停止流式TTS处理 (当前:{getattr(self, 'current_chat_session_id', 'None')}, 请求:{chat_session_id})")
+                            break
+                            
+                        # 🔧 优化表情包过滤，避免流程中断（修复音频卡顿）
+                        original_content = content
+                        cleaned_content = self.tts._remove_emojis(content) if hasattr(self.tts, '_remove_emojis') else content
+                        
+                        if original_content != cleaned_content:
+                            self.logger.bind(tag=TAG).info(f"🚫 流式TTS移除表情包: '{original_content}' → '{cleaned_content}'")
+                        
+                        # 🛠️ 关键修复：对于纯表情符号，不跳过而是累积到下一个有效内容
+                        if not cleaned_content or not cleaned_content.strip():
+                            self.logger.bind(tag=TAG).debug(f"📝 累积空内容，等待后续文本: '{original_content}'")
+                            # 不使用continue，而是累积这个响应到response_message
+                            response_message.append(original_content)
+                            continue
+                        
+                        # 🛠️ 关键修复：确保第一个有效消息使用FIRST类型
+                        sentence_type = SentenceType.FIRST if not first_valid_tts_sent else SentenceType.MIDDLE
+                        if not first_valid_tts_sent:
+                            first_valid_tts_sent = True
+                            self.logger.bind(tag=TAG).info(f"🎯 发送第一个有效TTS消息（FIRST类型）: '{cleaned_content}'")
+                        
+                        self.logger.bind(tag=TAG).debug(f"发送TTS消息: '{cleaned_content}'")
+                        self.tts.tts_text_queue.put(
+                            TTSMessageDTO(
+                                sentence_id=self.sentence_id,
+                                sentence_type=sentence_type,
+                                content_type=ContentType.TEXT,
+                                content_detail=cleaned_content,
+                            )
                         )
-                    )
+                    else:
+                        self.logger.bind(tag=TAG).warning("TTS为None，无法发送消息")
+        
+        # 流式响应处理完成
+        self.logger.bind(tag=TAG).info(f"流式响应处理完成，总响应数: {response_count}")
+        self.logger.bind(tag=TAG).debug(f"tool_call_flag: {tool_call_flag}, client_abort: {self.client_abort}")
+        
         # 处理function call
         if tool_call_flag:
             bHasError = False
@@ -824,7 +1013,14 @@ class ConnectionHandler:
             text_buff = "".join(response_message)
             self.tts_MessageText = text_buff
             self.dialogue.put(Message(role="assistant", content=text_buff))
-        if depth == 0:
+            self.logger.bind(tag=TAG).info(f"🔍 存储对话内容: '{text_buff}'")
+        else:
+            self.logger.bind(tag=TAG).warning(f"🔍 response_message为空，无对话内容存储")
+            
+        # 🔧 修复：只发送ACTION类型LAST消息标记LLM完成，让TTS提供者智能判断何时结束会话
+        if depth == 0 and self.tts is not None:
+            self.logger.bind(tag=TAG).info(f"🔍 发送LAST消息到TTS")
+            self.logger.bind(tag=TAG).info(f"🔍 TTS队列对象: {id(self.tts.tts_text_queue)}, 队列大小: {self.tts.tts_text_queue.qsize()}")
             self.tts.tts_text_queue.put(
                 TTSMessageDTO(
                     sentence_id=self.sentence_id,
@@ -832,6 +1028,7 @@ class ConnectionHandler:
                     content_type=ContentType.ACTION,
                 )
             )
+            self.logger.bind(tag=TAG).info(f"🔍 LAST消息已入队，新队列大小: {self.tts.tts_text_queue.qsize()}")
         self.llm_finish_task = True
         # 使用lambda延迟计算，只有在DEBUG级别时才执行get_llm_dialogue()
         self.logger.bind(tag=TAG).debug(
@@ -845,7 +1042,8 @@ class ConnectionHandler:
     def _handle_function_result(self, result, function_call_data, depth):
         if result.action == Action.RESPONSE:  # 直接回复前端
             text = result.response
-            self.tts.tts_one_sentence(self, ContentType.TEXT, content_detail=text)
+            if self.tts is not None:
+                self.tts.tts_one_sentence(self, ContentType.TEXT, content_detail=text)
             self.dialogue.put(Message(role="assistant", content=text))
         elif result.action == Action.REQLLM:  # 调用函数后再请求llm生成回复
             text = result.result
@@ -882,7 +1080,8 @@ class ConnectionHandler:
                 self.chat(text, tool_call=True, depth=depth + 1)
         elif result.action == Action.NOTFOUND or result.action == Action.ERROR:
             text = result.response if result.response else result.result
-            self.tts.tts_one_sentence(self, ContentType.TEXT, content_detail=text)
+            if self.tts is not None:
+                self.tts.tts_one_sentence(self, ContentType.TEXT, content_detail=text)
             self.dialogue.put(Message(role="assistant", content=text))
         else:
             pass
@@ -1012,6 +1211,10 @@ class ConnectionHandler:
 
     def clear_queues(self):
         """清空所有任务队列"""
+        # 🚫 首先强制停止所有正在进行的处理
+        self.client_abort = True
+        self.llm_finish_task = False
+        
         if self.tts:
             self.logger.bind(tag=TAG).debug(
                 f"开始清理: TTS队列大小={self.tts.tts_text_queue.qsize()}, 音频队列大小={self.tts.tts_audio_queue.qsize()}"
@@ -1034,6 +1237,47 @@ class ConnectionHandler:
             self.logger.bind(tag=TAG).debug(
                 f"清理结束: TTS队列大小={self.tts.tts_text_queue.qsize()}, 音频队列大小={self.tts.tts_audio_queue.qsize()}"
             )
+        
+        self.logger.bind(tag=TAG).info("🚫 强制停止所有任务并清空队列")
+
+    def _reset_connection_states(self):
+        """连接断开时重置相关状态"""
+        try:
+            # 🔄 重置TTS相关状态
+            if hasattr(self, 'tts_actually_started'):
+                self.tts_actually_started = False
+            if hasattr(self, 'tts_message_started'):
+                self.tts_message_started = False
+            if hasattr(self, 'client_is_speaking'):
+                self.client_is_speaking = False
+            
+            # 🔄 重置按钮状态
+            if hasattr(self, 'button_is_pressed'):
+                self.button_is_pressed = False
+            if hasattr(self, 'button_just_released'):
+                self.button_just_released = False
+                
+            # 🔄 重置会话标志
+            if hasattr(self, '_session_first_audio_sent'):
+                self._session_first_audio_sent = False
+                
+            # 🔄 清理任务跟踪
+            if hasattr(self, '_audio_send_tasks'):
+                for task in list(self._audio_send_tasks):
+                    if not task.done():
+                        task.cancel()
+                self._audio_send_tasks.clear()
+                
+            if hasattr(self, '_tts_completion_tasks'):
+                for task in list(self._tts_completion_tasks):
+                    if not task.done():
+                        task.cancel()
+                self._tts_completion_tasks.clear()
+                
+            self.logger.bind(tag=TAG).info("🔄 连接断开状态重置完成")
+            
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"连接状态重置失败: {e}")
 
     def reset_vad_states(self):
         self.client_audio_buffer = bytearray()

@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from config.logger import setup_logging
 from plugins_func.register import register_function, ToolType, ActionResponse, Action
 from core.utils.util import get_ip_info
+from core.tools.java_backend_weather import JavaBackendWeatherService
 
 TAG = __name__
 logger = setup_logging()
@@ -12,9 +13,9 @@ GET_WEATHER_FUNCTION_DESC = {
     "function": {
         "name": "get_weather",
         "description": (
-            "获取某个地点的天气，用户应提供一个位置，比如用户说杭州天气，参数为：杭州。"
-            "如果用户说的是省份，默认用省会城市。如果用户说的不是省份或城市而是一个地名，默认用该地所在省份的省会城市。"
-            "如果用户没有指明地点，说“天气怎么样”，”今天天气如何“，location参数为空"
+            "获取天气信息，支持实时天气查询。当用户询问天气相关问题时（如'天气怎么样'、'今天天气如何'、'明天什么天气'等），都可以调用此函数。"
+            "用户如果指定地点（如'杭州天气'），参数为该地点名；如果没有指明地点，location参数为空，将获取用户当前位置的天气。"
+            "注意：此函数可以为LLM提供天气上下文信息，即使用户问明天天气，也应该调用此函数获取当前天气信息作为参考。"
         ),
         "parameters": {
             "type": "object",
@@ -152,7 +153,42 @@ def parse_weather_info(soup):
 @register_function("get_weather", GET_WEATHER_FUNCTION_DESC, ToolType.SYSTEM_CTL)
 def get_weather(conn, location: str = None, lang: str = "zh_CN"):
     from core.utils.cache.manager import cache_manager, CacheType
-
+    import asyncio
+    
+    # 优先使用Java后端API
+    use_java_backend = conn.config.get("weather", {}).get("use_java_backend", True)
+    
+    if use_java_backend:
+        try:
+            # 尝试使用Java后端天气API
+            weather_service = JavaBackendWeatherService(conn.config)
+            
+            # 如果有设备ID，优先使用设备ID获取天气
+            device_id = getattr(conn, 'device_id', None)
+            if device_id:
+                logger.bind(tag=TAG).info(f"使用Java后端API获取设备 {device_id} 天气信息")
+                weather_summary = asyncio.run(weather_service.get_weather_summary(device_id))
+                if weather_summary and weather_summary.get("current"):
+                    weather_text = weather_service.format_weather_for_greeting(weather_summary)
+                    
+                    # 缓存天气报告
+                    cache_key = f"java_weather_{device_id}_{lang}"
+                    cache_manager.set(CacheType.WEATHER, cache_key, weather_text)
+                    
+                    return ActionResponse(Action.REQLLM, weather_text, None)
+                    
+            # 如果没有设备ID或设备天气获取失败，尝试按城市获取
+            if location:
+                logger.bind(tag=TAG).info(f"使用Java后端API按城市获取天气: {location}")
+                # 这里可以调用按城市查询的API（如果Java后端支持）
+                # weather_data = asyncio.run(weather_service.get_weather_by_city(location))
+                
+        except Exception as e:
+            logger.bind(tag=TAG).warning(f"Java后端天气API调用失败: {e}，回退到第三方API")
+    
+    # 回退到原有的第三方天气API
+    logger.bind(tag=TAG).info("使用第三方天气API")
+    
     api_host = conn.config["plugins"]["get_weather"].get(
         "api_host", "mj7p3y7naa.re.qweatherapi.com"
     )
@@ -182,6 +218,7 @@ def get_weather(conn, location: str = None, lang: str = "zh_CN"):
         else:
             # 若无IP，使用默认位置
             location = default_location
+    
     # 尝试从缓存获取完整天气报告
     weather_cache_key = f"full_weather_{location}_{lang}"
     cached_weather_report = cache_manager.get(CacheType.WEATHER, weather_cache_key)

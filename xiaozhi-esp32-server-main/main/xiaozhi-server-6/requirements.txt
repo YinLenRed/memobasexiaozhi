@@ -1,0 +1,119 @@
+# ================================================================
+# 小智ESP32服务器 - Python依赖包列表
+# 更新时间: 2025-01-19
+# ================================================================
+
+# ========== 核心Python包 ==========
+PyYAML==6.0.2              # YAML配置文件解析
+loguru==0.7.3               # 高级日志库
+requests==2.32.3            # HTTP请求库
+Jinja2==3.1.6               # 模板引擎
+PyJWT==2.8.0                # JWT令牌处理
+psutil==7.0.0               # 系统进程监控
+portalocker==3.1.1          # 文件锁定
+
+# ========== 异步网络通信 ==========
+aiohttp==3.11.18            # 异步HTTP客户端/服务器
+aiohttp_cors==0.7.0         # CORS支持
+httpx==0.27.2               # 现代HTTP客户端
+websockets==15.0.1          # WebSocket通信
+paho-mqtt==2.1.0            # MQTT消息队列客户端
+aioconsole==0.8.1           # 异步控制台
+
+# ========== AI和语音处理 ==========
+openai==1.78.0              # OpenAI API客户端
+google-generativeai==0.8.4  # Google AI API
+torch==2.6.0                # PyTorch机器学习框架
+torchaudio==2.6.0           # PyTorch音频处理
+numpy==1.26.4               # 数值计算库
+scipy==1.15.2               # 科学计算库
+
+# ========== 语音识别和合成 ==========
+funasr==1.2.3               # FunASR语音识别
+silero_vad==5.1.2           # Silero语音活动检测
+sherpa_onnx==1.12.4         # Sherpa-ONNX语音识别
+edge_tts==7.0.2             # Edge TTS语音合成
+opuslib_next==1.1.2         # Opus音频编解码
+pydub==0.25.1               # 音频处理
+librosa==0.11.0             # 音频分析
+soundfile==0.13.1           # 音频文件读写
+SpeechRecognition==3.14.2   # 语音识别封装库
+
+# ========== 数据处理和存储 ==========
+pandas==2.2.3               # 数据分析库
+sqlalchemy>=1.4.0           # 数据库ORM（如果需要）
+beautifulsoup4==4.13.3      # HTML解析
+bs4==0.0.2                  # Beautiful Soup包装
+lxml==5.4.0                 # XML/HTML解析器
+jieba==0.42.1               # 中文分词
+
+# ========== 文件和文档处理 ==========
+python-docx>=0.8.11         # Word文档处理
+openpyxl==3.1.5             # Excel文件处理
+xlrd==2.0.1                 # Excel读取
+XlsxWriter==3.2.3           # Excel写入
+python-pptx==1.0.2          # PowerPoint处理
+pdfminer.six==20250506      # PDF处理
+markitdown==0.0.2           # Markdown转换
+
+# ========== 网络和加密 ==========
+cryptography==44.0.3        # 加密库
+certifi==2025.1.31          # SSL证书
+urllib3==2.3.0              # HTTP库
+chardet==5.2.0              # 字符编码检测
+PySocks==1.7.1              # SOCKS代理支持
+
+# ========== 中国特色服务 ==========
+cnlunar==0.2.0              # 中国农历
+baidu-aip==4.16.13          # 百度AI服务
+dashscope==1.23.1           # 阿里云灵积服务
+cozepy==0.12.0              # 抖音豆包API
+
+# ========== 内存和知识管理 ==========
+mem0ai==0.1.62              # Mem0.ai内存管理
+memobase==0.0.23            # Memobase知识库
+mcp==1.6.0                  # MCP协议支持
+
+# ========== 模型和推理 ==========
+modelscope==1.25.0          # ModelScope模型库
+huggingface-hub==0.31.1     # Hugging Face模型中心
+transformers>=4.30.0        # Transformer模型（按需安装）
+sentence-transformers>=2.2.0 # 句子嵌入模型（按需安装）
+
+# ========== 图像处理 ==========
+pillow==11.2.1              # 图像处理库
+opencv-python>=4.8.0        # 计算机视觉（按需安装）
+
+# ========== 开发和调试工具 ==========
+pytest>=7.0.0              # 单元测试框架
+pytest-asyncio>=0.21.0     # 异步测试支持
+black>=23.0.0               # 代码格式化
+flake8>=6.0.0               # 代码检查
+isort>=5.12.0               # 导入排序
+
+# ========== 任务调度和监控 ==========
+apscheduler>=3.10.0         # 任务调度器（按需安装）
+celery>=5.3.0               # 分布式任务队列（按需安装）
+
+# ========== 实用工具 ==========
+python-dateutil==2.9.0.post0 # 日期处理扩展
+pytz==2025.2                # 时区处理
+tqdm==4.67.1                # 进度条
+tabulate==0.9.0             # 表格格式化
+click>=8.1.0                # 命令行接口
+
+# ================================================================
+# 注意事项:
+# 1. 某些包（如transformers, opencv-python）体积较大，按需安装
+# 2. GPU相关包（nvidia-*）需要CUDA环境，按需安装
+# 3. 建议使用虚拟环境安装依赖
+# 4. 如遇到版本冲突，可以删除版本号让pip自动解决
+# ================================================================
+
+# 安装命令:
+# pip install -r requirements.txt
+# 
+# 或分批安装:
+# pip install paho-mqtt httpx aiohttp PyYAML loguru
+# pip install openai torch torchaudio
+# pip install funasr silero_vad edge_tts

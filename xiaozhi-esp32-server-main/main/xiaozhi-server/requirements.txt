@@ -1,38 +1,303 @@
-pyyml==0.0.2
-torch==2.2.2
-silero_vad==5.1.2
-websockets==14.2
-opuslib_next==1.1.2
-numpy==1.26.4
-pydub==0.25.1
-funasr==1.2.3
-torchaudio==2.2.2
-openai==1.61.0
-google-generativeai==0.8.4
-edge_tts==7.0.0
-httpx==0.27.2
-aiohttp==3.9.3
-aiohttp_cors==0.7.0
-ormsgpack==1.7.0
-ruamel.yaml==0.18.10
-loguru==0.7.3
-requests==2.32.3
-cozepy==0.12.0
-mem0ai==0.1.62
-bs4==0.0.2
-modelscope==1.23.2
-sherpa_onnx==1.12.4
-mcp==1.8.1
-cnlunar==0.2.0
-PySocks==1.7.1
-dashscope==1.23.1
-baidu-aip==4.16.13
-chardet==5.2.0
-aioconsole==0.8.1
-markitdown==0.1.1
-mcp-proxy==0.8.0
-PyJWT==2.8.0
-psutil==7.0.0
-portalocker==2.10.1
-Jinja2==3.1.6
-paho-mqtt==2.1.0
+# ================================================================
+# 小智ESP32服务器 - Python依赖包列表（基于UV导出整合）
+# 更新时间: 2025-09-12
+# 导出来源: uv pip freeze （生产环境实际安装版本）
+# ================================================================
+
+# ========== 核心Python包 ==========
+PyYAML==6.0.2              # YAML配置文件解析
+loguru==0.7.3               # 高级日志库
+requests==2.32.3            # HTTP请求库
+Jinja2==3.1.6               # 模板引擎
+PyJWT==2.8.0                # JWT令牌处理
+psutil==7.0.0               # 系统进程监控
+portalocker==3.1.1          # 文件锁定
+
+# ========== 基础系统依赖 ==========
+typing-extensions==4.13.1   # 类型注解扩展
+six==1.17.0                 # Python 2/3 兼容库
+packaging==24.2             # 包装工具
+platformdirs==4.3.8        # 平台目录
+filelock==3.18.0           # 文件锁
+exceptiongroup==1.2.2      # 异常组
+
+# ========== 异步网络通信 ==========
+# aiohttp 核心依赖链（生产环境版本）
+multidict==6.3.2            # 多值字典（aiohttp基础依赖）
+propcache==0.3.1           # 属性缓存（yarl依赖）
+yarl==1.19.0                # URL解析库（aiohttp依赖）
+aiosignal==1.3.2            # 异步信号（aiohttp依赖）
+frozenlist==1.5.0          # 不可变列表（aiohttp依赖）
+aiohappyeyeballs==2.6.1    # 快速连接库（aiohttp依赖）
+attrs==25.3.0              # 类装饰器库（aiohttp依赖）
+async-timeout==5.0.1       # 异步超时（aiohttp依赖）
+aiohttp==3.11.18            # 异步HTTP客户端/服务器
+aiohttp-cors==0.7.0         # CORS支持
+
+# httpx 依赖链
+sniffio==1.3.1              # 异步库兼容性
+idna==3.10                  # 国际化域名支持
+anyio==4.9.0                # 异步库统一接口
+h11==0.14.0                 # HTTP/1.1协议实现
+h2==4.2.0                   # HTTP/2协议实现
+hpack==4.1.0               # HTTP/2头部压缩
+hyperframe==6.1.0          # HTTP/2帧处理
+httpcore==1.0.7             # HTTP核心库
+httpx==0.27.2               # 现代HTTP客户端
+httpx-sse==0.4.0           # Server-Sent Events支持
+
+# 其他网络通信
+websockets==15.0.1          # WebSocket通信
+paho-mqtt==2.1.0            # MQTT消息队列客户端
+aioconsole==0.8.1           # 异步控制台
+
+# ========== AI和语音处理 ==========
+# 大语言模型API
+openai==1.78.0              # OpenAI API客户端
+google-generativeai==0.8.4  # Google AI API
+google-api-core==2.24.2    # Google API核心
+google-auth==2.38.0        # Google认证
+googleapis-common-protos==1.69.2 # Google协议
+
+# PyTorch生态
+torch==2.6.0                # PyTorch机器学习框架
+torchaudio==2.6.0           # PyTorch音频处理
+torch-complex==0.4.4       # PyTorch复数支持
+triton==3.2.0               # GPU计算加速
+pytorch-wpe==0.0.1         # PyTorch WPE
+
+# NVIDIA CUDA支持
+nvidia-cublas-cu12==12.4.5.8
+nvidia-cuda-cupti-cu12==12.4.127
+nvidia-cuda-nvrtc-cu12==12.4.127
+nvidia-cuda-runtime-cu12==12.4.127
+nvidia-cudnn-cu12==9.1.0.70
+nvidia-cufft-cu12==11.2.1.3
+nvidia-curand-cu12==10.3.5.147
+nvidia-cusolver-cu12==11.6.1.9
+nvidia-cusparse-cu12==12.3.1.170
+nvidia-cusparselt-cu12==0.6.2
+nvidia-nccl-cu12==2.21.5
+nvidia-nvjitlink-cu12==12.4.127
+nvidia-nvtx-cu12==12.4.127
+
+# 科学计算
+numpy==1.26.4               # 数值计算库
+scipy==1.15.2               # 科学计算库
+numba==0.61.0               # JIT编译器
+llvmlite==0.44.0           # LLVM Python绑定
+scikit-learn==1.6.1        # 机器学习库
+joblib==1.4.2               # 并行计算
+threadpoolctl==3.6.0       # 线程池控制
+
+# ========== 语音识别和合成 ==========
+# 语音识别
+funasr==1.2.3               # FunASR语音识别
+silero-vad==5.1.2           # Silero语音活动检测
+sherpa-onnx==1.12.9         # Sherpa-ONNX语音识别
+speechrecognition==3.14.2   # 语音识别封装库
+kaldiio==2.18.1            # Kaldi I/O工具
+
+# 语音合成
+edge-tts==7.0.2             # Edge TTS语音合成
+
+# 音频处理
+opuslib-next==1.1.2         # Opus音频编解码
+pydub==0.25.1               # 音频处理
+librosa==0.11.0             # 音频分析
+soundfile==0.13.1           # 音频文件读写
+audioread==3.0.1            # 音频文件读取
+soxr==0.5.0.post1          # 音频重采样
+lazy-loader==0.4           # 延迟加载器
+pooch==1.8.2               # 数据下载管理
+
+# NLP和文本处理
+transformers==4.55.2        # Transformer模型
+sentence-transformers==5.1.0 # 句子嵌入模型
+huggingface-hub==0.31.1     # Hugging Face模型中心
+sentencepiece==0.2.0       # SentencePiece分词
+
+# ========== 数据处理和存储 ==========
+pandas==2.2.3               # 数据分析库
+sqlalchemy==2.0.43          # 数据库ORM
+beautifulsoup4==4.13.3      # HTML解析
+bs4==0.0.2                  # Beautiful Soup包装
+lxml==5.4.0                 # XML/HTML解析器
+jieba==0.42.1               # 中文分词
+soupsieve==2.6              # CSS选择器
+networkx==3.4.2             # 图论算法
+
+# ========== 文件和文档处理 ==========
+python-docx==1.2.0          # Word文档处理
+openpyxl==3.1.5             # Excel文件处理
+xlrd==2.0.1                 # Excel读取
+xlsxwriter==3.2.3           # Excel写入
+python-pptx==1.0.2          # PowerPoint处理
+pdfminer-six==20250506      # PDF处理
+markitdown==0.0.2           # Markdown转换
+markdownify==1.1.0          # HTML到Markdown转换
+markupsafe==3.0.2           # 标记安全处理
+et-xmlfile==2.0.0           # Excel XML文件
+olefile==0.47               # OLE文件格式
+mammoth==1.9.0              # .docx到HTML转换
+
+# ========== 网络和加密 ==========
+cryptography==44.0.3        # 加密库
+certifi==2025.1.31          # SSL证书
+urllib3==2.3.0              # HTTP库
+chardet==5.2.0              # 字符编码检测
+charset-normalizer==3.4.1   # 字符编码规范化
+pysocks==1.7.1              # SOCKS代理支持
+pycparser==2.22             # C解析器
+cffi==1.17.1                # C外部函数接口
+pycryptodome==3.22.0        # 加密算法
+crcmod==1.7                 # CRC校验
+
+# ========== 中国特色服务 ==========
+cnlunar==0.2.0              # 中国农历
+baidu-aip==4.16.13          # 百度AI服务
+dashscope==1.23.1           # 阿里云灵积服务
+cozepy==0.12.0              # 抖音豆包API
+aliyun-python-sdk-core==2.16.0  # 阿里云SDK核心
+aliyun-python-sdk-kms==2.16.5   # 阿里云KMS
+oss2==2.19.1                # 阿里云对象存储
+
+# ========== 内存和知识管理 ==========
+mem0ai==0.1.62              # Mem0.ai内存管理
+memobase==0.0.23            # Memobase知识库
+mcp==1.6.0                  # MCP协议支持
+
+# ========== 模型和推理 ==========
+modelscope==1.25.0          # ModelScope模型库
+
+# ========== 图像处理 ==========
+pillow==11.2.1              # 图像处理库
+opencv-python==4.12.0.88    # 计算机视觉
+
+# ========== 开发和调试工具 ==========
+pytest==8.4.1               # 单元测试框架
+pytest-asyncio==1.1.0       # 异步测试支持
+black==25.1.0                # 代码格式化
+flake8==7.3.0                # 代码检查
+isort==6.0.1                 # 导入排序
+
+# ========== 任务调度和监控 ==========
+apscheduler==3.11.0          # 任务调度器
+celery==5.5.3                # 分布式任务队列
+
+# ========== 实用工具 ==========
+python-dateutil==2.9.0.post0 # 日期处理扩展
+pytz==2025.2                # 时区处理
+tzdata==2025.2              # 时区数据
+tqdm==4.67.1                # 进度条
+tabulate==0.9.0             # 表格格式化
+click==8.1.8                # 命令行接口
+python-dotenv==1.1.0        # 环境变量管理
+
+# ========== 其他工具库 ==========
+fsspec==2025.3.2            # 文件系统抽象
+decorator==5.2.1            # 装饰器工具
+distro==1.9.0               # Linux发行版检测
+defusedxml==0.7.1           # 安全XML解析
+editdistance==0.8.1         # 编辑距离计算
+getmac==0.9.5               # MAC地址获取
+humanfriendly==10.0         # 人性化输出
+pathvalidate==3.2.3        # 路径验证
+puremagic==1.29             # 文件类型检测
+win32-setctime==1.2.0       # Windows时间设置
+
+# ========== 协议和序列化 ==========
+grpcio==1.71.0              # gRPC通信
+grpcio-status==1.71.0       # gRPC状态
+protobuf==5.29.4            # Protocol Buffers
+proto-plus==1.26.1         # Protocol Buffers增强
+msgpack==1.1.0              # MessagePack序列化
+jmespath==0.10.0            # JSON路径查询
+jiter==0.9.0                # 快速JSON迭代器
+
+# ========== Web和HTTP扩展 ==========
+uvicorn==0.34.0             # ASGI服务器
+starlette==0.46.1           # ASGI框架
+sse-starlette==2.2.1        # Server-Sent Events
+httplib2==0.22.0            # HTTP库扩展
+isodate==0.7.2              # ISO日期处理
+uritemplate==4.1.1          # URI模板
+
+# ========== 数据科学扩展 ==========
+cachetools==5.5.2           # 缓存工具
+pynndescent==0.5.13         # 近似最近邻
+umap-learn==0.5.7           # 降维算法
+
+# ========== 音频视频扩展 ==========
+youtube-transcript-api==1.0.3 # YouTube字幕API
+srt==3.5.3                  # SRT字幕处理
+
+# ========== 多语言支持 ==========
+jaconv==0.4.0               # 日语假名转换
+jamo==0.4.1                 # 韩语字母处理
+
+# ========== Azure云服务 ==========
+azure-ai-documentintelligence==1.0.2 # Azure文档智能
+azure-core==1.34.0          # Azure核心
+azure-identity==1.22.0      # Azure身份认证
+msal==1.32.3                # Microsoft认证库
+msal-extensions==1.3.1      # MSAL扩展
+
+# ========== 配置管理 ==========
+hydra-core==1.3.2           # 配置管理框架
+omegaconf==2.3.0            # 配置文件处理
+pydantic==2.11.2            # 数据验证
+pydantic-core==2.33.1       # Pydantic核心
+pydantic-settings==2.8.1    # Pydantic设置
+annotated-types==0.7.0      # 类型注解
+
+# ========== 其他依赖 ==========
+antlr4-python3-runtime==4.9.3 # ANTLR运行时
+cobble==0.1.4               # 依赖注入
+hf-xet==1.1.0               # Hugging Face Xet
+tensorboardx==2.6.2.2       # TensorBoard扩展
+typing-inspection==0.4.0    # 类型检查
+pyasn1==0.6.1               # ASN.1编解码
+pyasn1-modules==0.4.2       # ASN.1模块
+pyparsing==3.2.3            # 解析器生成器
+rsa==4.9                    # RSA加密
+ruamel-yaml==0.18.10        # YAML处理
+ruamel-yaml-clib==0.2.12    # YAML C库
+sympy==1.13.1               # 符号数学
+pyyml==0.0.2                # YAML工具
+mpmath==1.3.0               # 多精度数学
+
+# ================================================================
+# 安装说明:
+# ================================================================
+
+# 🚀 完整安装 (推荐，基于UV导出的生产环境版本):
+# uv pip install -r requirements.txt
+# 或使用传统pip: pip install -r requirements.txt
+
+# 📦 分批安装 (如果网络不稳定):
+# 第一批：基础网络
+# uv pip install paho-mqtt aiohttp httpx websockets PyYAML loguru requests
+# 第二批：AI和语音
+# uv pip install openai torch torchaudio numpy funasr edge-tts
+# 第三批：数据处理
+# uv pip install pandas beautifulsoup4 lxml transformers
+
+# 🎯 最小化安装 (核心功能):
+# uv pip install PyYAML loguru requests aiohttp websockets paho-mqtt
+# uv pip install openai torch funasr edge-tts numpy
+
+# 📋 验证安装:
+# python -c "import aiohttp, torch, funasr, edge_tts; print('✅ 核心依赖安装成功')"
+
+# ================================================================
+# 注意事项:
+# ================================================================
+# 1. 本文件基于生产环境的 uv pip freeze 导出
+# 2. 建议使用Python 3.11+版本（与生产环境一致）
+# 3. 推荐使用UV包管理器获得更快的安装速度
+# 4. GPU相关包需要CUDA 12.4环境
+# 5. 如在新服务器部署，直接使用此文件即可获得完全一致的环境
+# 6. 中国用户建议使用镜像源: -i https://pypi.tuna.tsinghua.edu.cn/simple/
+# 7. 总包数量: 197个包
+# ================================================================

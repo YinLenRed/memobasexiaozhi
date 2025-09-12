@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Any
 from config.logger import setup_logging
 from plugins_func.register import Action, ActionResponse
 from .base import ToolType, ToolDefinition, ToolExecutor
+from .mcp_waiting_assistant import mcp_waiting_assistant
 
 
 class ToolManager:
@@ -36,6 +37,7 @@ class ToolManager:
         for tool_type, executor in self.executors.items():
             try:
                 tools = executor.get_tools()
+                self.logger.debug(f"从{tool_type.value}执行器获取到 {len(tools)} 个工具: {list(tools.keys())}")
                 for name, definition in tools.items():
                     if name in all_tools:
                         self.logger.warning(f"工具名称冲突: {name}")
@@ -78,10 +80,18 @@ class ToolManager:
             # 查找工具类型
             tool_type = self.get_tool_type(tool_name)
             if not tool_type:
-                return ActionResponse(
-                    action=Action.NOTFOUND,
-                    response=f"工具 {tool_name} 不存在",
-                )
+                # 如果工具不存在，刷新工具缓存后再次尝试
+                self.logger.debug(f"工具 {tool_name} 不存在，刷新工具缓存后重试")
+                self.refresh_tools()
+                tool_type = self.get_tool_type(tool_name)
+                if not tool_type:
+                    # 输出当前所有可用工具用于调试
+                    all_tools = self.get_all_tools()
+                    self.logger.warning(f"工具 {tool_name} 仍不存在。当前可用工具: {list(all_tools.keys())}")
+                    return ActionResponse(
+                        action=Action.NOTFOUND,
+                        response=f"工具 {tool_name} 不存在",
+                    )
 
             # 获取对应的执行器
             executor = self.executors.get(tool_type)
@@ -91,10 +101,23 @@ class ToolManager:
                     response=f"工具类型 {tool_type.value} 的执行器未注册",
                 )
 
+            # 🎭 MCP等待提示：在执行慢速工具前播放等待消息
+            if mcp_waiting_assistant.should_show_waiting_message(tool_name):
+                user_query = getattr(self.conn, 'last_user_query', '')
+                await mcp_waiting_assistant.play_waiting_message(self.conn, tool_name, arguments, user_query)
+            
             # 执行工具
             self.logger.info(f"执行工具: {tool_name}，参数: {arguments}")
             result = await executor.execute(self.conn, tool_name, arguments)
             self.logger.debug(f"工具执行结果: {result}")
+            
+            # 🔍 调试日志：追踪ActionResponse传递
+            if hasattr(result, 'action') and hasattr(result, 'response'):
+                response_len = len(result.response) if result.response else 0
+                self.logger.info(f"🎤 unified_tool_manager返回: action={result.action}, response长度={response_len}")
+                if result.response:
+                    self.logger.info(f"🎤 unified_tool_manager返回内容: {result.response[:50]}...")
+            
             return result
 
         except Exception as e:

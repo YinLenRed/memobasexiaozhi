@@ -1,0 +1,110 @@
+# 🚀 WebSocket + 预缓冲优化配置
+# 这个配置文件让你能够在服务器上灵活调整优化参数
+
+websocket_optimization:
+  # 🎯 核心开关
+  enabled: true  # 是否启用优化 (设为false回到原始行为)
+  
+  # 📊 性能监控
+  performance_monitoring:
+    enabled: true  # 是否启用性能监控
+    log_level: "info"  # 日志级别: debug, info, warning, error
+    detailed_stats: true  # 是否记录详细统计信息
+    max_history: 100  # 保留的历史记录数量
+  
+  # ⚡ 预缓冲策略
+  prebuffer:
+    # 动态预缓冲帧数 (根据音频长度自动调整)
+    short_audio_frames: 5    # 短音频(<1秒): 最多缓冲5帧
+    medium_audio_frames: 4   # 中等音频(1-3秒): 缓冲4帧
+    long_audio_frames: 3     # 长音频(>3秒): 缓冲3帧
+    
+    # 预缓冲阈值 (帧数)
+    short_audio_threshold: 10   # ≤10帧为短音频
+    medium_audio_threshold: 30  # ≤30帧为中等音频
+    
+    # 预缓冲发送策略
+    burst_send: true  # 是否突发发送预缓冲帧 (无延迟)
+    
+  # 🎛️ 流控制优化
+  flow_control:
+    # 帧间隔优化 (毫秒)
+    standard_interval: 60      # 标准Opus帧间隔
+    optimized_interval: 55     # 优化后间隔 (略快5ms)
+    
+    # 最大延迟限制 (毫秒)
+    max_delay_per_frame: 55    # 单帧最大延迟
+    
+    # 网络自适应
+    adaptive_timing: true      # 是否根据网络状况自适应调整
+    
+  # 📈 性能目标
+  performance_targets:
+    # 优化比例目标 (传输时间/播放时间)
+    excellent_ratio: 0.3   # <0.3为优秀
+    good_ratio: 0.6        # <0.6为良好  
+    acceptable_ratio: 1.0  # <1.0为可接受
+    
+    # 最小帧率目标 (帧/秒)
+    min_frame_rate: 15     # 最低15帧/秒
+    target_frame_rate: 20  # 目标20帧/秒
+    
+  # 🔧 故障排除
+  troubleshooting:
+    # 错误重试
+    enable_retry: true
+    max_retries: 3
+    retry_delay_ms: 100
+    
+    # 降级策略
+    fallback_to_standard: true  # 出错时是否降级到标准模式
+    fallback_threshold: 3       # 连续失败多少次后降级
+
+# 📊 监控和统计配置
+monitoring:
+  # 自动报告
+  auto_report:
+    enabled: true
+    interval_minutes: 30  # 每30分钟自动输出性能报告
+    include_device_stats: true
+    
+  # 性能警告
+  alerts:
+    slow_transmission: true      # 传输过慢时警告
+    high_failure_rate: true      # 高失败率时警告
+    poor_optimization: true      # 优化效果差时警告
+    
+    # 警告阈值
+    slow_threshold_ratio: 1.5    # 优化比例>1.5时警告
+    failure_rate_threshold: 0.1  # 失败率>10%时警告
+
+# 🧪 测试和调试
+testing:
+  # 测试模式
+  test_mode: false  # 生产环境设为false
+  
+  # 模拟测试
+  simulate_network_delay: false
+  simulated_delay_ms: 50
+  
+  # 调试输出
+  debug_frame_sending: false    # 是否调试每帧发送
+  debug_timing: false          # 是否调试时序计算
+  debug_performance: true      # 是否调试性能指标
+
+# 📝 使用说明
+# 1. 生产环境推荐配置:
+#    - enabled: true
+#    - performance_monitoring.enabled: true  
+#    - test_mode: false
+#    - debug_*: false (除了debug_performance可以保持true)
+#
+# 2. 如果遇到问题:
+#    - 设置 fallback_to_standard: true
+#    - 检查 monitoring.alerts 的警告信息
+#    - 临时设置 enabled: false 回到原始模式
+#
+# 3. 性能调优:
+#    - 调整 prebuffer.* 参数来优化预缓冲策略
+#    - 调整 flow_control.optimized_interval 来优化传输速度
+#    - 观察日志中的优化比例，目标 < 0.6

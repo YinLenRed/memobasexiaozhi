@@ -144,6 +144,13 @@ class TTSProvider(TTSProviderBase):
         self.ws = None
         self.interface_type = InterfaceType.DUAL_STREAM
         self._monitor_task = None  # 监听任务引用
+        # 🔧 修复第一句话音频数据为空的问题
+        self.waiting_for_first_audio = False
+        self.first_sentence_text = ""
+        
+        # 🛠️ 会话管理：记录当前会话ID用于复用判断
+        self.current_session_id = None
+        
         self.appId = config.get("appid")
         self.access_token = config.get("access_token")
         self.cluster = config.get("cluster")
@@ -179,9 +186,15 @@ class TTSProvider(TTSProviderBase):
             ssl_context = ssl.create_default_context()
             ssl_context.check_hostname = False
             ssl_context.verify_mode = ssl.CERT_NONE
+            # 🔧 强制重新建立连接，排除连接复用问题
             if self.ws:
-                logger.bind(tag=TAG).info(f"使用已有链接...")
-                return self.ws
+                logger.bind(tag=TAG).info(f"检测到已有连接，先关闭...")
+                try:
+                    await self.ws.close()
+                except:
+                    pass
+                self.ws = None
+                logger.bind(tag=TAG).info(f"已关闭旧连接，准备建立新连接")
             logger.bind(tag=TAG).info("开始建立新连接...")
             ws_header = {
                 "X-Api-App-Key": self.appId,
@@ -208,9 +221,7 @@ class TTSProvider(TTSProviderBase):
                     f"收到TTS任务｜{message.sentence_type.name} ｜ {message.content_type.name} | 会话ID: {self.conn.sentence_id}"
                 )
 
-                if message.sentence_type == SentenceType.FIRST:
-                    self.conn.client_abort = False
-
+                # 🚫 关键修复：先检查abort状态，避免被FIRST消息重置
                 if self.conn.client_abort:
                     try:
                         logger.bind(tag=TAG).info("收到打断信息，终止TTS文本处理线程")
@@ -222,6 +233,11 @@ class TTSProvider(TTSProviderBase):
                     except Exception as e:
                         logger.bind(tag=TAG).error(f"取消TTS会话失败: {str(e)}")
                         continue
+
+                # 🔧 只有在非abort状态下才重置abort标志（防止打断被意外重置）
+                if message.sentence_type == SentenceType.FIRST:
+                    # 不自动重置client_abort，由textHandle.py在适当时机重置
+                    pass
 
                 if message.sentence_type == SentenceType.FIRST:
                     # 初始化参数
@@ -235,28 +251,51 @@ class TTSProvider(TTSProviderBase):
                             self.start_session(self.conn.sentence_id),
                             loop=self.conn.loop,
                         )
-                        future.result()
-                        self.before_stop_play_files.clear()
-                        logger.bind(tag=TAG).info("TTS会话启动成功")
+                        try:
+                            future.result(timeout=5)  # 🔧 缩短为5秒超时，加快响应速度
+                            self.before_stop_play_files.clear()
+                            logger.bind(tag=TAG).info("TTS会话启动成功")
+                        except asyncio.TimeoutError:
+                            logger.bind(tag=TAG).error("TTS会话启动超时(5秒)，跳过此次处理")
+                            continue
                     except Exception as e:
                         logger.bind(tag=TAG).error(f"启动TTS会话失败: {str(e)}")
                         continue
 
                 elif ContentType.TEXT == message.content_type:
                     if message.content_detail:
-                        try:
-                            logger.bind(tag=TAG).debug(
-                                f"开始发送TTS文本: {message.content_detail}"
-                            )
-                            future = asyncio.run_coroutine_threadsafe(
-                                self.text_to_speak(message.content_detail, None),
-                                loop=self.conn.loop,
-                            )
-                            future.result()
-                            logger.bind(tag=TAG).debug("TTS文本发送成功")
-                        except Exception as e:
-                            logger.bind(tag=TAG).error(f"发送TTS文本失败: {str(e)}")
+                        # 🔧 增强错误处理：检查文本内容
+                        if not message.content_detail.strip():
+                            logger.bind(tag=TAG).warning(f"⚠️ 跳过空白文本段: '{message.content_detail}'")
                             continue
+                            
+                        # 🔧 重试机制：最多尝试2次
+                        max_retries = 2
+                        for attempt in range(max_retries):
+                            try:
+                                logger.bind(tag=TAG).debug(
+                                    f"发送TTS文本 (尝试{attempt+1}/{max_retries}): '{message.content_detail}'"
+                                )
+                                future = asyncio.run_coroutine_threadsafe(
+                                    self.text_to_speak(message.content_detail, None),
+                                    loop=self.conn.loop,
+                                )
+                                future.result(timeout=8)  # 🔧 增加超时时间到8秒
+                                logger.bind(tag=TAG).debug(f"TTS文本发送成功: '{message.content_detail}'")
+                                break  # 成功后跳出重试循环
+                            except asyncio.TimeoutError:
+                                logger.bind(tag=TAG).error(f"❌ TTS文本发送超时 (尝试{attempt+1}/{max_retries}): '{message.content_detail}'")
+                                if attempt == max_retries - 1:
+                                    logger.bind(tag=TAG).error(f"❌ TTS文本发送最终失败，跳过此文本段: '{message.content_detail}'")
+                            except Exception as e:
+                                logger.bind(tag=TAG).error(f"❌ TTS文本发送异常 (尝试{attempt+1}/{max_retries}): {str(e)}, 文本: '{message.content_detail}'")
+                                if attempt == max_retries - 1:
+                                    logger.bind(tag=TAG).error(f"❌ TTS文本发送最终失败，跳过此文本段: '{message.content_detail}'")
+                                    break
+                                else:
+                                    # 🔧 重试前短暂等待
+                                    import time
+                                    time.sleep(0.5)
 
                 elif ContentType.FILE == message.content_type:
                     logger.bind(tag=TAG).info(
@@ -271,12 +310,20 @@ class TTSProvider(TTSProviderBase):
 
                 if message.sentence_type == SentenceType.LAST:
                     try:
+                        # 🔧 修复时序问题：延迟会话结束，确保音频数据完全接收
+                        logger.bind(tag=TAG).info("准备结束TTS会话，等待音频数据完成...")
+                        
+                        # 延迟一小段时间，让音频数据处理完成（使用time.sleep而不是await）
+                        import time
+                        time.sleep(0.5)
+                        
                         logger.bind(tag=TAG).info("开始结束TTS会话...")
                         future = asyncio.run_coroutine_threadsafe(
                             self.finish_session(self.conn.sentence_id),
                             loop=self.conn.loop,
                         )
                         future.result()
+                        logger.bind(tag=TAG).info("TTS会话结束成功")
                     except Exception as e:
                         logger.bind(tag=TAG).error(f"结束TTS会话失败: {str(e)}")
                         continue
@@ -294,29 +341,47 @@ class TTSProvider(TTSProviderBase):
         try:
             # 建立新连接
             if self.ws is None:
-                logger.bind(tag=TAG).warning(f"WebSocket连接不存在，终止发送文本")
-                return
+                logger.bind(tag=TAG).error(f"❌ WebSocket连接不存在，无法发送文本: '{text}'")
+                raise Exception("WebSocket连接不存在")
 
             #  过滤Markdown
             filtered_text = MarkdownCleaner.clean_markdown(text)
+            logger.bind(tag=TAG).debug(f"Markdown过滤后文本: '{filtered_text}'")
+            
+            # 🔧 检查过滤后的文本
+            if not filtered_text or not filtered_text.strip():
+                logger.bind(tag=TAG).warning(f"⚠️ 过滤后文本为空，跳过发送: 原文本='{text}'")
+                return
 
             # 发送文本
+            logger.bind(tag=TAG).debug(f"发送到TTS服务: '{filtered_text}'")
             await self.send_text(self.voice, filtered_text, self.conn.sentence_id)
+            logger.bind(tag=TAG).debug(f"文本已发送到TTS服务: '{filtered_text}'")
             return
         except Exception as e:
-            logger.bind(tag=TAG).error(f"发送TTS文本失败: {str(e)}")
+            logger.bind(tag=TAG).error(f"❌ text_to_speak发送失败: {str(e)}, 文本: '{text}'")
             if self.ws:
                 try:
                     await self.ws.close()
+                    logger.bind(tag=TAG).info("🔧 已关闭异常的WebSocket连接")
                 except:
                     pass
-                self.ws = None
-            raise
+            raise  # 重新抛出异常，让上层重试机制处理
 
     async def start_session(self, session_id):
         logger.bind(tag=TAG).info(f"开始会话～～{session_id}")
         try:
-            # 会话开始时检测上个会话的监听状态
+            # 🛠️ 关键修复：检查是否已有相同会话ID的活跃会话
+            if hasattr(self, 'current_session_id') and self.current_session_id == session_id:
+                # 相同会话ID，检查连接是否正常
+                if (self.ws is not None and 
+                    self._monitor_task is not None and 
+                    isinstance(self._monitor_task, Task) and 
+                    not self._monitor_task.done()):
+                    logger.bind(tag=TAG).info(f"🔄 复用现有TTS会话: {session_id}")
+                    return  # 复用现有会话，不需要重新创建
+            
+            # 不同会话ID或连接异常，需要重新创建
             if (
                 self._monitor_task is not None
                 and isinstance(self._monitor_task, Task)
@@ -330,6 +395,7 @@ class TTSProvider(TTSProviderBase):
 
             # 启动监听任务
             self._monitor_task = asyncio.create_task(self._start_monitor_tts_response())
+            logger.bind(tag=TAG).info(f"🔍 音频监听任务已启动: {id(self._monitor_task)}")
 
             header = Header(
                 message_type=FULL_CLIENT_REQUEST,
@@ -344,6 +410,10 @@ class TTSProvider(TTSProviderBase):
             )
             await self.send_event(self.ws, header, optional, payload)
             logger.bind(tag=TAG).info("会话启动请求已发送")
+            logger.bind(tag=TAG).info("TTS会话启动成功")
+            
+            # 🛠️ 记录当前会话ID，用于会话复用判断
+            self.current_session_id = session_id
         except Exception as e:
             logger.bind(tag=TAG).error(f"启动会话失败: {str(e)}")
             # 确保清理资源
@@ -423,20 +493,47 @@ class TTSProvider(TTSProviderBase):
             except:
                 pass
             self.ws = None
+            
+        # 🛠️ 清理会话ID，确保下次可以创建新会话
+        if hasattr(self, 'current_session_id'):
+            self.current_session_id = None
 
     async def _start_monitor_tts_response(self):
         """监听TTS响应"""
+        logger.bind(tag=TAG).info("🎧 开始监听TTS音频响应...")
         opus_datas_cache = []
         is_first_sentence = True
         first_sentence_segment_count = 0  # 添加计数器
         try:
             session_finished = False  # 标记会话是否正常结束
             while not self.conn.stop_event.is_set():
+                # 🚫 关键修复：在循环开始检查abort状态
+                if self.conn.client_abort:
+                    logger.bind(tag=TAG).info("🚫 监听循环检测到abort，停止TTS音频生成")
+                    break
+                    
+                logger.bind(tag=TAG).debug("🔍 等待WebSocket消息...")
                 try:
                     # 确保 `recv()` 运行在同一个 event loop
                     msg = await self.ws.recv()
+                    logger.bind(tag=TAG).debug(f"收到WebSocket消息，长度: {len(msg) if msg else 0}")
                     res = self.parser_response(msg)
-                    self.print_response(res, "send_text res:")
+                    logger.bind(tag=TAG).debug(f"解析消息事件: {res.optional.event}")
+                    # self.print_response(res, "send_text res:")
+
+                    # 🔧 简化事件处理日志
+                    if res.optional.event == 350:  # EVENT_TTSSentenceStart
+                        logger.bind(tag=TAG).debug(f"句子开始: {res.optional.event}")
+                    elif res.optional.event == 352:  # EVENT_TTSResponse
+                        logger.bind(tag=TAG).debug(f"音频响应: {res.optional.event}")
+                    elif res.optional.event == 351:  # EVENT_TTSSentenceEnd
+                        logger.bind(tag=TAG).debug(f"句子结束: {res.optional.event}")
+                    elif res.optional.event == 150:  # EVENT_SessionStarted
+                        logger.bind(tag=TAG).debug(f"会话已启动: {res.optional.event}")
+                    elif res.optional.event == 152:  # EVENT_SessionFinished
+                        logger.bind(tag=TAG).info(f"🎯 匹配到EVENT_SessionFinished(152)")
+                    else:
+                        logger.bind(tag=TAG).info(f"🤔 未知事件: {res.optional.event}")
 
                     if res.optional.event == EVENT_SessionCanceled:
                         logger.bind(tag=TAG).debug(f"释放服务端资源成功～～")
@@ -445,39 +542,65 @@ class TTSProvider(TTSProviderBase):
                     elif res.optional.event == EVENT_TTSSentenceStart:
                         json_data = json.loads(res.payload.decode("utf-8"))
                         self.tts_text = json_data.get("text", "")
-                        logger.bind(tag=TAG).debug(f"句子语音生成开始: {self.tts_text}")
-                        self.tts_audio_queue.put(
-                            (SentenceType.FIRST, [], self.tts_text)
-                        )
+                        logger.bind(tag=TAG).info(f"🎵 句子语音生成开始: {self.tts_text}")
+                        # 🔧 修复：不要立即放入空音频数据，标记等待第一个音频数据
+                        self.waiting_for_first_audio = True
+                        self.first_sentence_text = self.tts_text
+                        logger.bind(tag=TAG).info(f"🔍 等待第一句话音频数据: text='{self.tts_text}'")
                         opus_datas_cache = []
                         first_sentence_segment_count = 0  # 重置计数器
                     elif (
                         res.optional.event == EVENT_TTSResponse
                         and res.header.message_type == AUDIO_ONLY_RESPONSE
                     ):
-                        logger.bind(tag=TAG).debug(f"推送数据到队列里面～～")
+                        # 🚫 在处理音频前检查abort状态
+                        if self.conn.client_abort:
+                            logger.bind(tag=TAG).info("🚫 音频处理中检测到abort，跳过音频数据")
+                            continue
+                            
+                        logger.bind(tag=TAG).debug(f"收到音频数据，处理中...")
                         opus_datas = self.wav_to_opus_data_audio_raw(res.payload)
                         logger.bind(tag=TAG).debug(
-                            f"推送数据到队列里面帧数～～{len(opus_datas)}"
+                            f"处理音频数据完成: {len(opus_datas)}帧"
                         )
-                        if is_first_sentence:
+                        
+                        # 🔧 修复：如果这是等待中的第一个音频数据，立即发送FIRST消息
+                        if hasattr(self, 'waiting_for_first_audio') and self.waiting_for_first_audio:
+                            logger.bind(tag=TAG).info(f"🎵 收到第一句话的首个音频数据，立即发送FIRST消息")
+                            self.tts_audio_queue.put(
+                                (SentenceType.FIRST, opus_datas, self.first_sentence_text)
+                            )
+                            self.waiting_for_first_audio = False
+                            first_sentence_segment_count = 1  # 已经处理了第一段
+                        elif is_first_sentence:
                             first_sentence_segment_count += 1
+                            logger.bind(tag=TAG).info(f"🔍 第一句话处理: 片段{first_sentence_segment_count}, 音频帧数{len(opus_datas)}")
                             if first_sentence_segment_count <= 6:
+                                logger.bind(tag=TAG).info(f"📤 直接入队: 片段{first_sentence_segment_count}, {len(opus_datas)}帧")
                                 self.tts_audio_queue.put(
                                     (SentenceType.MIDDLE, opus_datas, None)
                                 )
                             else:
+                                logger.bind(tag=TAG).info(f"📦 缓存音频: 片段{first_sentence_segment_count}, {len(opus_datas)}帧")
                                 opus_datas_cache.extend(opus_datas)
                         else:
                             # 后续句子缓存
+                            logger.bind(tag=TAG).info(f"📦 后续句子缓存: {len(opus_datas)}帧")
                             opus_datas_cache.extend(opus_datas)
                     elif res.optional.event == EVENT_TTSSentenceEnd:
                         logger.bind(tag=TAG).info(f"句子语音生成成功：{self.tts_text}")
-                        if not is_first_sentence or first_sentence_segment_count > 10:
-                            # 发送缓存的数据
+                        
+                        # 🛠️ 关键修复：句子结束时必须发送所有缓存的音频数据
+                        if len(opus_datas_cache) > 0:
+                            logger.bind(tag=TAG).info(f"📤 发送缓存音频数据：{len(opus_datas_cache)}帧")
                             self.tts_audio_queue.put(
                                 (SentenceType.MIDDLE, opus_datas_cache, None)
                             )
+                            logger.bind(tag=TAG).info(f"✅ 缓存音频数据已放入队列")
+                            opus_datas_cache = []  # 清空缓存
+                        else:
+                            logger.bind(tag=TAG).debug(f"📭 句子结束，无缓存音频需要发送")
+                        
                         # 第一句话结束后，将标志设置为False
                         is_first_sentence = False
                     elif res.optional.event == EVENT_SessionFinished:
@@ -490,7 +613,7 @@ class TTSProvider(TTSProviderBase):
                     break
                 except Exception as e:
                     logger.bind(tag=TAG).error(
-                        f"Error in _start_monitor_tts_response: {e}"
+                        f"❌ WebSocket监听异常: {e}, WebSocket状态: {self.ws.closed if self.ws else 'None'}"
                     )
                     traceback.print_exc()
                     break

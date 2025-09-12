@@ -39,6 +39,11 @@ class ServerMCPExecutor(ToolExecutor):
 
             result = await self.mcp_manager.execute_tool(actual_tool_name, arguments)
 
+            # 如果是搜索工具，过滤结果中的技术信息
+            if "search" in actual_tool_name.lower() or "bocha" in actual_tool_name.lower() or "bailian" in actual_tool_name.lower():
+                filtered_result = self._filter_search_result(str(result))
+                return ActionResponse(action=Action.REQLLM, result=filtered_result)
+            
             return ActionResponse(action=Action.REQLLM, result=str(result))
 
         except ValueError as e:
@@ -82,6 +87,31 @@ class ServerMCPExecutor(ToolExecutor):
             actual_tool_name = tool_name[4:]
 
         return self.mcp_manager.is_mcp_tool(actual_tool_name)
+
+    def _filter_search_result(self, result: str) -> str:
+        """过滤搜索结果中的技术信息，只保留用户关心的内容"""
+        import re
+        
+        # 移除URL链接
+        result = re.sub(r'URL：[^\s\n]+', '', result)
+        result = re.sub(r'https?://[^\s\n]+', '', result)
+        
+        # 移除发布日期信息
+        result = re.sub(r'发布日期：[^\n]+', '', result)
+        result = re.sub(r'时间：[^\n]+', '', result)
+        
+        # 移除来源信息（但保留标题后的来源）
+        result = re.sub(r'来源：([^\n]+)(?=\n|$)', r'', result)
+        
+        # 清理多余的空行和空格
+        result = re.sub(r'\n\s*\n', '\n', result)
+        result = re.sub(r'^\s+|\s+$', '', result, flags=re.MULTILINE)
+        
+        # 如果结果为空或过短，返回友好提示
+        if len(result.strip()) < 10:
+            return "搜索到了相关信息，但内容比较简单，建议您换个关键词再试试。"
+        
+        return result.strip()
 
     async def cleanup(self):
         """清理MCP连接"""

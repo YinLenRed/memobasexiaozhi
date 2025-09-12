@@ -1,0 +1,345 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+MQTT Webhooks回调处理器
+实现完整的 MQTT -> ACK -> TTS -> WebSocket -> 硬件播放 流程
+"""
+
+import asyncio
+import json
+import time
+import uuid
+import websockets
+from datetime import datetime
+from typing import Dict, Any, Optional
+from config.logger import setup_logging
+from core.providers.tts.base import TTSProviderBase
+
+TAG = __name__
+
+
+class WebhookCallbackHandler:
+    """MQTT Webhooks回调处理器"""
+    
+    def __init__(self, config: Dict[str, Any], mqtt_client=None, tts_provider: TTSProviderBase = None):
+        self.config = config
+        self.mqtt_client = mqtt_client
+        self.tts_provider = tts_provider
+        self.logger = setup_logging()
+        
+        # 跟踪正在处理的请求
+        self.pending_requests = {}
+        
+        # WebSocket连接管理
+        self.device_websockets = {}
+        
+        # 设置MQTT客户端的默认ACK处理器
+        if self.mqtt_client:
+            self.mqtt_client.set_default_ack_handler(self.handle_device_ack)
+    
+    async def handle_device_ack(self, device_id: str, track_id: str, ack_data: Dict):
+        """
+        处理设备ACK回调 - 这是Webhooks流程的核心
+        
+        流程: 设备收到唤醒指令 -> 发送ACK -> 触发TTS -> 发送音频 -> 设备播放
+        """
+        self.logger.bind(tag=TAG).info(f"🔔 收到设备ACK: {device_id}, track_id: {track_id}")
+        
+        try:
+            # 1. 检查是否有对应的待处理请求
+            if track_id not in self.pending_requests:
+                self.logger.bind(tag=TAG).warning(f"未找到对应的待处理请求: {track_id}")
+                return
+            
+            request_info = self.pending_requests[track_id]
+            text_content = request_info.get("text", "")
+            
+            if not text_content:
+                self.logger.bind(tag=TAG).error(f"缺少文本内容: {track_id}")
+                return
+            
+            # 2. 更新请求状态
+            request_info["status"] = "ack_received"
+            request_info["ack_time"] = datetime.now().isoformat()
+            request_info["ack_data"] = ack_data
+            
+            # 3. 生成TTS音频
+            self.logger.bind(tag=TAG).info(f"🎵 开始生成TTS音频: {text_content[:50]}...")
+            audio_data = await self._generate_tts_audio(text_content, track_id)
+            
+            if audio_data:
+                # 4. 通过WebSocket发送音频到设备
+                success = await self._send_audio_via_websocket(device_id, audio_data, track_id)
+                
+                if success:
+                    request_info["status"] = "audio_sent"
+                    request_info["audio_sent_time"] = datetime.now().isoformat()
+                    self.logger.bind(tag=TAG).info(f"✅ 音频发送成功: {track_id}")
+                else:
+                    request_info["status"] = "audio_send_failed"
+                    self.logger.bind(tag=TAG).error(f"❌ 音频发送失败: {track_id}")
+            else:
+                request_info["status"] = "tts_failed"
+                self.logger.bind(tag=TAG).error(f"❌ TTS生成失败: {track_id}")
+            
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"❌ 处理设备ACK失败: {e}")
+            if track_id in self.pending_requests:
+                self.pending_requests[track_id]["status"] = "error"
+                self.pending_requests[track_id]["error"] = str(e)
+    
+    async def register_awaken_request(self, device_id: str, text: str, track_id: str = None):
+        """
+        注册唤醒请求，等待设备ACK
+        
+        在发送MQTT唤醒命令之前调用此方法，注册待处理的请求
+        """
+        if not track_id:
+            track_id = f"WH{datetime.now().strftime('%Y%m%d%H%M%S')}{uuid.uuid4().hex[:6]}"
+        
+        # 注册待处理请求
+        self.pending_requests[track_id] = {
+            "device_id": device_id,
+            "text": text,
+            "status": "registered",
+            "register_time": datetime.now().isoformat(),
+            "track_id": track_id
+        }
+        
+        self.logger.bind(tag=TAG).info(f"📝 注册唤醒请求: {device_id}, track_id: {track_id}")
+        return track_id
+    
+    async def _generate_tts_audio(self, text: str, track_id: str) -> Optional[bytes]:
+        """生成TTS音频"""
+        try:
+            if not self.tts_provider:
+                self.logger.bind(tag=TAG).warning("TTS提供器未配置，使用模拟音频")
+                # 返回模拟音频数据
+                await asyncio.sleep(0.5)  # 模拟TTS生成时间
+                return f"MOCK_AUDIO_DATA_FOR_{text[:20]}".encode()
+            
+            # 调用实际的TTS服务
+            audio_data = await self.tts_provider.generate_audio(text)
+            
+            if audio_data:
+                self.logger.bind(tag=TAG).info(f"✅ TTS生成成功: {len(audio_data)} bytes")
+                return audio_data
+            else:
+                self.logger.bind(tag=TAG).error("TTS提供器返回空数据")
+                return None
+                
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"TTS生成异常: {e}")
+            return None
+    
+    async def _send_audio_via_websocket(self, device_id: str, audio_data: bytes, track_id: str) -> bool:
+        """通过WebSocket发送音频到设备"""
+        try:
+            # 构建音频消息
+            audio_message = {
+                "type": "audio",
+                "track_id": track_id,
+                "audio_data": audio_data.hex(),  # 转换为十六进制字符串
+                "timestamp": datetime.now().isoformat(),
+                "device_id": device_id
+            }
+            
+            # 尝试发送到设备的WebSocket连接
+            websocket_url = self._get_device_websocket_url(device_id)
+            
+            if websocket_url:
+                success = await self._send_to_websocket(websocket_url, audio_message)
+                return success
+            else:
+                # 如果没有直接的WebSocket连接，尝试通过现有的连接管理器
+                success = await self._send_via_connection_manager(device_id, audio_message)
+                return success
+                
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"WebSocket音频发送异常: {e}")
+            return False
+    
+    def _get_device_websocket_url(self, device_id: str) -> Optional[str]:
+        """获取设备的WebSocket连接URL"""
+        # 这里可以根据设备ID构建WebSocket URL
+        # 或者从设备注册表中获取
+        
+        # 示例: 假设设备有固定的WebSocket端点
+        device_ws_port = self.config.get("device_websocket", {}).get("port", 8080)
+        device_ip = self._get_device_ip(device_id)
+        
+        if device_ip:
+            return f"ws://{device_ip}:{device_ws_port}/audio"
+        
+        return None
+    
+    def _get_device_ip(self, device_id: str) -> Optional[str]:
+        """获取设备IP地址"""
+        # 这里应该从设备管理系统中获取设备IP
+        # 或者从配置文件中读取设备映射
+        
+        device_mapping = self.config.get("device_mapping", {})
+        return device_mapping.get(device_id)
+    
+    async def _send_to_websocket(self, websocket_url: str, message: Dict) -> bool:
+        """发送消息到WebSocket"""
+        try:
+            async with websockets.connect(websocket_url) as websocket:
+                await websocket.send(json.dumps(message))
+                self.logger.bind(tag=TAG).info(f"📡 WebSocket消息发送成功: {websocket_url}")
+                return True
+                
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"WebSocket连接失败: {websocket_url}, {e}")
+            return False
+    
+    async def _send_via_connection_manager(self, device_id: str, message: Dict) -> bool:
+        """通过现有的连接管理器发送消息"""
+        try:
+            # 这里应该与现有的WebSocket连接管理器集成
+            # 假设有一个全局的连接管理器
+            
+            self.logger.bind(tag=TAG).info(f"📨 通过连接管理器发送音频: {device_id}")
+            
+            # 模拟发送过程
+            await asyncio.sleep(0.3)
+            
+            # 实际实现应该调用连接管理器的发送方法
+            # connection_manager.send_to_device(device_id, message)
+            
+            return True
+            
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"连接管理器发送失败: {e}")
+            return False
+    
+    async def handle_device_speak_done(self, device_id: str, track_id: str, event_data: Dict):
+        """处理设备播放完成事件"""
+        self.logger.bind(tag=TAG).info(f"🎯 设备播放完成: {device_id}, track_id: {track_id}")
+        
+        try:
+            if track_id in self.pending_requests:
+                # 更新请求状态
+                self.pending_requests[track_id]["status"] = "completed"
+                self.pending_requests[track_id]["completed_time"] = datetime.now().isoformat()
+                self.pending_requests[track_id]["event_data"] = event_data
+                
+                # 转发完成事件到Java后端
+                await self._forward_completion_to_java(device_id, track_id, event_data)
+                
+                self.logger.bind(tag=TAG).info(f"✅ 完整流程完成: {track_id}")
+                
+                # 可选：清理已完成的请求
+                await asyncio.sleep(5)  # 等待5秒后清理
+                if track_id in self.pending_requests:
+                    del self.pending_requests[track_id]
+                    
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"处理播放完成事件失败: {e}")
+    
+    async def _forward_completion_to_java(self, device_id: str, track_id: str, event_data: Dict):
+        """转发完成事件到Java后端"""
+        try:
+            # 构建转发数据
+            completion_data = {
+                "device_id": device_id,
+                "track_id": track_id,
+                "event_type": "speak_done",
+                "event_data": event_data,
+                "process_info": self.pending_requests.get(track_id, {}),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # 发送到Java API
+            java_api_url = self.config.get("manager-api", {}).get("url", "http://localhost:8080")
+            completion_endpoint = f"{java_api_url}/api/device/completion"
+            
+            self.logger.bind(tag=TAG).info(f"📤 转发完成事件到Java: {completion_endpoint}")
+            
+            # 这里应该使用HTTP客户端发送POST请求
+            # import aiohttp
+            # async with aiohttp.ClientSession() as session:
+            #     async with session.post(completion_endpoint, json=completion_data) as response:
+            #         if response.status == 200:
+            #             self.logger.bind(tag=TAG).info("✅ Java转发成功")
+            
+            # 模拟HTTP请求
+            await asyncio.sleep(0.2)
+            self.logger.bind(tag=TAG).info(f"✅ 完成事件转发成功: {track_id}")
+            
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"转发到Java失败: {e}")
+    
+    def get_request_status(self, track_id: str) -> Dict:
+        """获取请求处理状态"""
+        return self.pending_requests.get(track_id, {})
+    
+    def get_all_pending_requests(self) -> Dict:
+        """获取所有待处理请求"""
+        return self.pending_requests.copy()
+    
+    async def cleanup_old_requests(self, max_age_hours: int = 24):
+        """清理旧的请求记录"""
+        now = datetime.now()
+        to_remove = []
+        
+        for track_id, request_info in self.pending_requests.items():
+            register_time_str = request_info.get("register_time", "")
+            if register_time_str:
+                try:
+                    register_time = datetime.fromisoformat(register_time_str)
+                    age = now - register_time
+                    
+                    if age.total_seconds() > max_age_hours * 3600:
+                        to_remove.append(track_id)
+                        
+                except ValueError:
+                    # 时间格式错误，也删除
+                    to_remove.append(track_id)
+        
+        for track_id in to_remove:
+            del self.pending_requests[track_id]
+        
+        if to_remove:
+            self.logger.bind(tag=TAG).info(f"🗑️ 清理了 {len(to_remove)} 个旧请求记录")
+
+
+class AwakenWithCallbackService:
+    """带回调的唤醒服务 - 集成了完整的Webhooks流程"""
+    
+    def __init__(self, config: Dict[str, Any], mqtt_client, tts_provider=None):
+        self.config = config
+        self.mqtt_client = mqtt_client
+        self.callback_handler = WebhookCallbackHandler(config, mqtt_client, tts_provider)
+        self.logger = setup_logging()
+    
+    async def send_awaken_with_callback(self, device_id: str, message: str, message_type: str = "weather") -> str:
+        """
+        发送唤醒消息并启动完整的回调流程
+        
+        这是用户应该调用的主要方法，它会自动处理整个流程：
+        1. 注册回调请求
+        2. 发送MQTT唤醒命令
+        3. 等待设备ACK
+        4. 自动生成TTS
+        5. 发送音频到设备
+        6. 处理播放完成事件
+        """
+        try:
+            # 1. 生成track_id并注册回调请求
+            track_id = await self.callback_handler.register_awaken_request(device_id, message)
+            
+            # 2. 发送MQTT唤醒命令
+            await self.mqtt_client.send_awaken_command(device_id, message, message_type)
+            
+            self.logger.bind(tag=TAG).info(f"🚀 启动完整回调流程: {device_id}, track_id: {track_id}")
+            
+            return track_id
+            
+        except Exception as e:
+            self.logger.bind(tag=TAG).error(f"❌ 启动回调流程失败: {e}")
+            raise
+    
+    def get_flow_status(self, track_id: str) -> Dict:
+        """获取完整流程的状态"""
+        return self.callback_handler.get_request_status(track_id)

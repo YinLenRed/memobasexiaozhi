@@ -1,0 +1,30 @@
+# 小智系统测试套件核心依赖
+# 安装命令: pip install -r 测试依赖.txt
+
+# MQTT通信 (兼容1.x和2.0+版本)
+paho-mqtt>=1.6.0
+
+# WebSocket通信
+websockets>=10.0
+
+# HTTP请求
+requests>=2.28.0
+
+# 异步IO支持
+aiofiles>=22.0.0
+
+# 日期时间处理
+python-dateutil>=2.8.0
+
+# JSON处理增强
+json5>=0.9.0
+
+# 系统信息获取
+psutil>=5.9.0
+
+# 配置文件支持
+pyyaml>=6.0
+
+# 控制台美化(可选)
+rich>=13.0.0
+coloredlogs>=15.0

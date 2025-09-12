@@ -40,7 +40,7 @@ class MemoryProvider(MemoryProviderBase):
             messages = [
                 {"role": message.role, "content": message.content}
                 for message in msgs
-                if message.role != "system"
+                if message.role in ["user", "assistant"]  # 只保留有效的角色
             ]
             bid = u.insert(ChatBlob(messages=messages))
             logger.bind(tag=TAG).debug(f"Save memory result: {u.get(bid)}")
@@ -93,3 +93,37 @@ class MemoryProvider(MemoryProviderBase):
         except Exception as e:
             logger.bind(tag=TAG).error(f"查询记忆失败: {str(e)}")
             return ""
+    
+    async def clear_memory(self) -> bool:
+        """
+        清除当前设备的所有记忆
+        
+        Returns:
+            bool: 是否成功清除
+        """
+        if not self.client:
+            logger.bind(tag=TAG).warning("Memobase客户端不可用，无法清除记忆")
+            return False
+        
+        try:
+            users = self.client.get_all_users(search="", order_by='updated_at', order_desc=True)
+            u_id = None
+            
+            # 查找当前设备对应的用户
+            for user in users:
+                if self.role_id in user.get('additional_fields'):
+                    u_id = user.get('id')
+                    break
+            
+            if not u_id:
+                logger.bind(tag=TAG).info(f"设备 {self.role_id} 没有找到记忆数据")
+                return True  # 没有记忆也算成功
+            
+            # 删除用户及其所有记忆
+            self.client.delete_user(u_id)
+            logger.bind(tag=TAG).info(f"✅ 已清除设备 {self.role_id} 的所有记忆")
+            return True
+            
+        except Exception as e:
+            logger.bind(tag=TAG).error(f"清除记忆失败: {str(e)}")
+            return False

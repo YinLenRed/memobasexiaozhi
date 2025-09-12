@@ -1,4 +1,4 @@
-pyyml==0.0.2
+PyYAML==6.0.2
 torch==2.2.2
 silero_vad==5.1.2
 websockets==14.2
