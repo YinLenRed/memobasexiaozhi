@@ -264,6 +264,11 @@ async def send_tts_message(conn, state, text=None):
         # 只有在发送实际音频时才设置tts_actually_started
         # 这里只是TTS消息的开始，不代表音频已经开始播放
         conn.tts_message_started = True  # 新标志：TTS消息已开始
+        
+        # 🔧 记录TTS开始时间用于超时保护
+        import time
+        conn.last_tts_start_time = time.time()
+        
         conn.logger.bind(tag=TAG).info(f"🎯 TTS消息开始，设置状态: client_is_speaking = True, tts_message_started = True")
         
         # 🛠️ 检查是否需要发送屏幕状态（避免重复发送）
@@ -515,6 +520,18 @@ async def _handle_tts_completion_with_delay(conn, text):
             except Exception as callback_error:
                 conn.logger.bind(tag=TAG).error(f"TTS完成回调执行失败: {callback_error}")
         
+        # 🔧 关键修复：强制确保说话状态被重置
+        conn.client_is_speaking = False
+        conn.logger.bind(tag=TAG).info("🎯 强制重置说话状态：client_is_speaking = False")
+        
+        # 🧹 清理TTS相关缓存，避免影响下次对话
+        if hasattr(conn, 'current_tts_text'):
+            conn.current_tts_text = ""
+        if hasattr(conn, 'tts_MessageText'):
+            old_text = conn.tts_MessageText
+            conn.tts_MessageText = ""
+            conn.logger.bind(tag=TAG).debug(f"🧹 清理TTS缓存: '{old_text[:30]}...' -> ''")
+        
         # 🎯 智能结束检测：检查是否需要停止聆听
         conn.logger.bind(tag=TAG).info(f"🔍 开始智能对话结束检测（延迟方案）")
         should_stop_listening = _should_stop_listening_after_response(conn, text)
@@ -735,9 +752,21 @@ async def _complete_tts_and_start_vad(conn):
         if hasattr(conn, 'speak_done_timestamp'):
             conn.speak_done_timestamp = None
         
+        # 🔧 关键修复：强制确保说话状态被重置
+        conn.client_is_speaking = False
+        conn.logger.bind(tag=TAG).info("🎯 强制重置说话状态：client_is_speaking = False")
+        
+        # 🧹 清理TTS相关缓存，避免影响下次对话
+        current_text = getattr(conn, 'current_tts_text', '')
+        if hasattr(conn, 'current_tts_text'):
+            conn.current_tts_text = ""
+        if hasattr(conn, 'tts_MessageText'):
+            old_text = conn.tts_MessageText
+            conn.tts_MessageText = ""
+            conn.logger.bind(tag=TAG).debug(f"🧹 清理TTS缓存: '{old_text[:30]}...' -> ''")
+        
         # 🎯 智能结束检测：检查是否需要停止聆听
         # 获取当前TTS文本（从事件方案中我们没有直接的text参数，需要从连接对象获取）
-        current_text = getattr(conn, 'current_tts_text', '')
         should_stop_listening = _should_stop_listening_after_response(conn, current_text)
         
         # 🚫 关键修复：在检查智能结束前先检查abort状态
@@ -801,6 +830,18 @@ async def _complete_tts_and_start_vad(conn):
             # 🎤 TTS播放完成后的状态处理
             conn.client_is_speaking = False  
             conn.logger.bind(tag=TAG).info(f"🎤 TTS播放完成，检查是否需要启动VAD聆听")
+            
+            # 🔧 超时保护：确保即使智能检测失败也能恢复聆听状态
+            # 为了避免长时间卡在说话状态，我们添加一个兜底机制
+            if hasattr(conn, 'last_tts_start_time'):
+                import time
+                time_since_start = time.time() - conn.last_tts_start_time
+                if time_since_start > 30:  # 30秒超时保护
+                    conn.logger.bind(tag=TAG).warning(f"🚨 TTS超时保护触发：{time_since_start:.1f}秒，强制启动聆听")
+                    # 直接启动VAD聆听，不发送消息（因为硬件不支持listen消息类型）
+                    from core.handle.receiveAudioHandle import start_listening_if_needed
+                    await start_listening_if_needed(conn)
+                    return
             
             # 🛡️ 检查用户是否在按住按钮（优先保持聆听状态）
             is_button_listening = (hasattr(conn, 'button_is_pressed') and conn.button_is_pressed)
@@ -897,10 +938,8 @@ def _should_stop_listening_after_response(conn, current_text: str = None) -> boo
         if hasattr(conn, 'config') and conn.config:
             smart_ending_enabled = conn.config.get("smart_conversation_ending", True)
             
-            # 🚨 临时修复：禁用智能检测避免影响TTS播放
-            if smart_ending_enabled:
-                smart_ending_enabled = False
-                conn.logger.bind(tag=TAG).info("🔧 临时修复：禁用智能对话结束检测，避免影响TTS播放")
+            # 🔧 重新启用智能检测，修复状态卡住问题
+            conn.logger.bind(tag=TAG).info(f"🔧 智能对话结束检测状态: {smart_ending_enabled}")
         
         if not smart_ending_enabled:
             return False
