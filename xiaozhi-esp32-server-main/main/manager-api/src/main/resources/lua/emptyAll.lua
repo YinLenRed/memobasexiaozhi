@@ -1,1 +1,0 @@
-redis.call('FLUSHALL')
